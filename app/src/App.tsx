@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { 
@@ -18,35 +19,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { collections } from './data/collections';
-import {
-  addToCart,
-  getCartCount,
-  getShopStorageEventName,
-  getWishlistIds,
-  toggleWishlistItem,
-} from './lib/shop-storage';
+import { useCart } from '@/context/CartContext';
+import { categories, collections, products, toCategorySlug } from '@/data/catalog';
 
 gsap.registerPlugin(ScrollTrigger);
 
-// Product data
-const products = [
-  { id: 1, name: 'Solitaire Diamond Ring', category: 'Rings', price: 125000, image: '/product-ring.jpg', rating: 4.9, isNew: false },
-  { id: 2, name: 'Cuban Link Chain', category: 'Necklaces', price: 85000, image: '/product-chain.jpg', rating: 4.8, isNew: false },
-  { id: 3, name: 'Diamond Stud Earrings', category: 'Earrings', price: 45000, image: '/product-studs.jpg', rating: 5.0, isNew: true },
-  { id: 4, name: 'Classic Gold Bangle', category: 'Bangles', price: 65000, image: '/product-bangle.jpg', rating: 4.7, isNew: false },
-  { id: 5, name: 'Bridal Diamond Set', category: 'Bridal', price: 285000, image: '/product-bridal.jpg', rating: 5.0, isNew: true },
-  { id: 6, name: 'Charm Bracelet', category: 'Bracelets', price: 35000, image: '/product-bracelet.jpg', rating: 4.6, isNew: false },
-];
-
-const categories = [
-  { name: 'Rings', image: '/cat-rings.jpg', count: 120 },
-  { name: 'Necklaces', image: '/cat-necklace.jpg', count: 85 },
-  { name: 'Earrings', image: '/cat-earrings.jpg', count: 150 },
-  { name: 'Bangles', image: '/product-bangle.jpg', count: 65 },
-];
-
 function App() {
+  const { totalItems } = useCart();
   const [isNavOpen, setIsNavOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<typeof products[0] | null>(null);
   const [isProductDialogOpen, setIsProductDialogOpen] = useState(false);
@@ -56,6 +35,7 @@ function App() {
   const [cartCount, setCartCount] = useState(() => getCartCount());
   const [isHeroVideoReady, setIsHeroVideoReady] = useState(false);
   const [shouldPlayHeroVideo, setShouldPlayHeroVideo] = useState(true);
+  const [isCartBumpActive, setIsCartBumpActive] = useState(false);
   
   const heroRef = useRef<HTMLDivElement>(null);
   const heroVideoRef = useRef<HTMLVideoElement>(null);
@@ -74,20 +54,14 @@ function App() {
   }, []);
 
   useEffect(() => {
-    const syncShopState = () => {
-      setWishlist(getWishlistIds());
-      setCartCount(getCartCount());
-    };
+    if (totalItems === 0) {
+      return;
+    }
 
-    const shopEvent = getShopStorageEventName();
-    window.addEventListener('storage', syncShopState);
-    window.addEventListener(shopEvent, syncShopState);
-
-    return () => {
-      window.removeEventListener('storage', syncShopState);
-      window.removeEventListener(shopEvent, syncShopState);
-    };
-  }, []);
+    setIsCartBumpActive(true);
+    const timer = window.setTimeout(() => setIsCartBumpActive(false), 300);
+    return () => window.clearTimeout(timer);
+  }, [totalItems]);
 
   useEffect(() => {
     const ctx = gsap.context(() => {
@@ -262,19 +236,19 @@ function App() {
                     {wishlist.length}
                   </span>
                 )}
-              </a>
-              <a
-                href="/cart"
-                className="p-2 hover:text-gold transition-colors relative"
-                aria-label="Shopping cart"
+              </button>
+              <Link
+                to="/cart"
+                className={`p-2 hover:text-gold transition-colors relative ${isCartBumpActive ? 'cart-bump' : ''}`}
+                aria-label="Open cart"
               >
                 <ShoppingBag className="w-5 h-5" />
-                {cartCount > 0 && (
-                  <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 bg-gold text-charcoal text-xs rounded-full flex items-center justify-center">
-                    {cartCount}
+                {totalItems > 0 && (
+                  <span className="absolute -top-1 -right-1 min-w-5 h-5 px-1 bg-gold text-charcoal text-xs rounded-full flex items-center justify-center font-semibold">
+                    {totalItems}
                   </span>
                 )}
-              </a>
+              </Link>
               
               {/* Mobile Menu */}
               <Sheet open={isNavOpen} onOpenChange={setIsNavOpen}>
@@ -290,6 +264,7 @@ function App() {
                     <a href="#categories" onClick={() => setIsNavOpen(false)} className="text-lg hover:text-gold transition-colors">Categories</a>
                     <a href="#products" onClick={() => setIsNavOpen(false)} className="text-lg hover:text-gold transition-colors">Shop</a>
                     <a href="#trust" onClick={() => setIsNavOpen(false)} className="text-lg hover:text-gold transition-colors">About</a>
+                    <Link to="/cart" onClick={() => setIsNavOpen(false)} className="text-lg hover:text-gold transition-colors">Cart ({totalItems})</Link>
                     <hr className="border-white/10" />
                     <Button 
                       onClick={() => { setIsNavOpen(false); setIsWhatsAppDialogOpen(true); }}
@@ -371,10 +346,10 @@ function App() {
         </div>
         
         {/* Scroll indicator */}
-        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 text-white/60">
+        {/* <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 text-white/60">
           <span className="text-xs tracking-widest uppercase">Scroll</span>
           <div className="w-px h-12 bg-gradient-to-b from-gold to-transparent" />
-        </div>
+        </div> */}
       </section>
 
       {/* Collection Section */}
@@ -485,7 +460,12 @@ function App() {
                   />
                 </div>
                 <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
-                  <span className="btn-luxury text-sm">Explore</span>
+                  <Link
+                    to={`/category/${toCategorySlug(category.name)}`}
+                    className="btn-luxury text-sm"
+                  >
+                    Explore
+                  </Link>
                 </div>
               </div>
               <h3 className="font-serif text-xl text-white text-center">{category.name}</h3>
@@ -509,7 +489,7 @@ function App() {
         </div>
         
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-          {products.map((product) => (
+          {products.slice(0, 6).map((product) => (
             <div key={product.id} className="product-card card-luxury group">
               <div className="relative overflow-hidden">
                 <div className="aspect-square">
