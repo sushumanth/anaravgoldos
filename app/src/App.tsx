@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
@@ -214,6 +214,23 @@ function App() {
       maximumFractionDigits: 0
     }).format(price);
   };
+
+  const bestSellerProducts = useMemo(() => {
+    const ranked = [...products].sort((a, b) => {
+      const byBestSeller = Number(b.isBestSeller) - Number(a.isBestSeller);
+      if (byBestSeller !== 0) return byBestSeller;
+      const byRating = b.rating - a.rating;
+      if (byRating !== 0) return byRating;
+      return b.price - a.price;
+    });
+
+    const selected = ranked.filter((item) => item.isBestSeller).slice(0, 6);
+    if (selected.length >= 6) {
+      return selected;
+    }
+
+    return ranked.slice(0, 6);
+  }, []);
 
   return (
     <div className="min-h-screen bg-charcoal text-white">
@@ -500,14 +517,14 @@ function App() {
             <span className="text-gold text-sm tracking-widest uppercase mb-4 block">Our Selection</span>
             <h2 className="heading-lg text-white">Best Sellers</h2>
           </div>
-          <a href="#" className="text-gold hover:text-gold-light transition-colors flex items-center gap-2 mt-4 md:mt-0">
+          <Link to="/category/rings" className="text-gold hover:text-gold-light transition-colors flex items-center gap-2 mt-4 md:mt-0">
             View All Products
             <ArrowRight className="w-5 h-5" />
-          </a>
+          </Link>
         </div>
         
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-          {products.slice(0, 6).map((product) => (
+          {bestSellerProducts.map((product) => (
             <div key={product.id} className="product-card card-luxury group">
               <div className="relative overflow-hidden">
                 <div className="aspect-square">
