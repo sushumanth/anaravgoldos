@@ -65,7 +65,7 @@ function WishlistPage() {
         <h1 className="font-serif text-3xl md:text-4xl text-white mb-5">Your Wishlist</h1>
 
         {wishlistProducts.length === 0 ? (
-          <div className="border border-white/10 bg-charcoal-light p-6">
+          <div className="border border-white/10 bg-charcoal-light p-6 rounded-2xl">
             <p className="text-gray-300 mb-4">Your wishlist is empty.</p>
             <a href="/" className="text-gold hover:text-gold-light transition-colors">
               Explore products
@@ -75,9 +75,9 @@ function WishlistPage() {
           <>
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
               {wishlistProducts.map((product) => (
-                <article key={product.id} className="border border-white/15 bg-charcoal-light p-3.5">
+                <article key={product.id} className="border border-white/15 bg-charcoal-light p-3.5 rounded-2xl hover:border-gold/40 transition-colors">
                   <a href={product.href} className="block group">
-                    <div className="aspect-square bg-black/20 overflow-hidden">
+                    <div className="aspect-square bg-black/20 overflow-hidden rounded-xl">
                       <img
                         src={product.image}
                         alt={product.name}
@@ -94,19 +94,19 @@ function WishlistPage() {
                   <div className="mt-3 flex items-center gap-2.5">
                     <a
                       href={product.href}
-                      className="flex-1 h-9 border border-gold text-gold text-sm inline-flex items-center justify-center hover:bg-gold hover:text-charcoal transition-colors"
+                      className="flex-1 h-9 border border-gold text-gold text-sm inline-flex items-center justify-center rounded-lg hover:bg-gold hover:text-charcoal transition-colors"
                     >
                       View Product
                     </a>
                     <button
                       type="button"
                       onClick={() => removeItem(product.id)}
-                      className="h-9 w-9 border border-white/25 inline-flex items-center justify-center hover:border-gold hover:text-gold transition-colors"
+                      className="h-9 w-9 border border-white/25 inline-flex items-center justify-center rounded-lg hover:border-gold hover:text-gold transition-colors"
                       aria-label="Remove from wishlist"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
-                    <span className="h-9 w-9 border border-white/25 inline-flex items-center justify-center text-gold">
+                    <span className="h-9 w-9 border border-white/25 inline-flex items-center justify-center text-gold rounded-lg">
                       <Heart className="w-4 h-4 fill-gold" />
                     </span>
                   </div>
@@ -118,7 +118,7 @@ function WishlistPage() {
               <button
                 type="button"
                 onClick={clearAll}
-                className="h-10 px-4 text-sm border border-white/25 hover:border-gold hover:text-gold transition-colors"
+                className="h-10 px-4 text-sm border border-white/25 rounded-lg hover:border-gold hover:text-gold transition-colors"
               >
                 Clear Wishlist
               </button>
@@ -131,3 +131,4 @@ function WishlistPage() {
 }
 
 export default WishlistPage;
+

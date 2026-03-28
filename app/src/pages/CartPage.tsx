@@ -66,7 +66,7 @@ function CartPage() {
         </div>
 
         {cartItems.length === 0 ? (
-          <div className="border border-white/10 bg-charcoal-light p-6">
+          <div className="border border-white/10 bg-charcoal-light p-6 rounded-2xl">
             <p className="text-gray-300 mb-4">Your cart is empty.</p>
             <a href="/" className="text-gold hover:text-gold-light transition-colors">
               Start shopping
@@ -78,13 +78,13 @@ function CartPage() {
               {cartItems.map((item, index) => (
                 <article
                   key={`${item.id}-${index}`}
-                  className="border border-white/15 bg-charcoal-light p-3.5 hover:border-gold/40 transition-colors"
+                  className="border border-white/15 bg-charcoal-light p-3.5 rounded-2xl hover:border-gold/40 transition-colors"
                 >
                   <div className="grid grid-cols-[84px_1fr_auto] gap-3 items-start">
                     <img
                       src={item.image}
                       alt={item.name}
-                      className="w-[84px] h-[84px] object-cover border border-white/10"
+                      className="w-[84px] h-[84px] object-cover border border-white/10 rounded-xl"
                     />
 
                     <div>
@@ -99,7 +99,7 @@ function CartPage() {
                       </div>
 
                       <div className="mt-3 flex flex-wrap items-center gap-2">
-                        <div className="h-9 border border-white/20 inline-flex items-center">
+                        <div className="h-9 border border-white/20 inline-flex items-center rounded-lg overflow-hidden">
                           <button
                             type="button"
                             onClick={() => updateQuantity(index, -1)}
@@ -120,7 +120,7 @@ function CartPage() {
                         <button
                           type="button"
                           onClick={() => removeItem(index)}
-                          className="h-9 px-3 border border-white/20 inline-flex items-center gap-2 text-sm hover:border-gold hover:text-gold transition-colors"
+                          className="h-9 px-3 border border-white/20 inline-flex items-center gap-2 text-sm rounded-lg hover:border-gold hover:text-gold transition-colors"
                         >
                           <Trash2 className="w-4 h-4" />
                           Remove
@@ -140,11 +140,11 @@ function CartPage() {
               <button
                 type="button"
                 onClick={clearAll}
-                className="h-10 px-4 border border-white/25 text-sm hover:border-gold hover:text-gold transition-colors"
+                className="h-10 px-4 border border-white/25 text-sm rounded-lg hover:border-gold hover:text-gold transition-colors"
               >
                 Clear Cart
               </button>
-              <div className="text-right">
+              <div className="text-right bg-charcoal-light border border-white/10 rounded-xl px-4 py-2">
                 <p className="text-gray-400 text-sm">Cart Total</p>
                 <p className="text-2xl text-gold font-semibold">{formatPrice(cartTotal)}</p>
               </div>
