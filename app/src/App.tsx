@@ -3,7 +3,7 @@ import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { 
   Menu, Phone, Mail, MapPin,
-  Heart, Search, Star, Award, Shield, Gem,
+  Heart, Search, Star, Award, Shield, Gem, ShoppingBag,
   ArrowRight, Calendar
 } from 'lucide-react';
 
@@ -18,6 +18,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { collections } from './data/collections';
+import {
+  addToCart,
+  getCartCount,
+  getShopStorageEventName,
+  getWishlistIds,
+  toggleWishlistItem,
+} from './lib/shop-storage';
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -38,19 +46,14 @@ const categories = [
   { name: 'Bangles', image: '/product-bangle.jpg', count: 65 },
 ];
 
-const collections = [
-  { name: 'Bridal Collection', subtitle: 'Eternal Love', image: '/collection-1.jpg' },
-  { name: 'Diamond Essentials', subtitle: 'Timeless Sparkle', image: '/collection-2.jpg' },
-  { name: 'Gold Classics', subtitle: 'Pure Elegance', image: '/collection-3.jpg' },
-];
-
 function App() {
   const [isNavOpen, setIsNavOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<typeof products[0] | null>(null);
   const [isProductDialogOpen, setIsProductDialogOpen] = useState(false);
   const [isWhatsAppDialogOpen, setIsWhatsAppDialogOpen] = useState(false);
   const [isAppointmentDialogOpen, setIsAppointmentDialogOpen] = useState(false);
-  const [wishlist, setWishlist] = useState<number[]>([]);
+  const [wishlist, setWishlist] = useState<number[]>(() => getWishlistIds());
+  const [cartCount, setCartCount] = useState(() => getCartCount());
   const [isHeroVideoReady, setIsHeroVideoReady] = useState(false);
   const [shouldPlayHeroVideo, setShouldPlayHeroVideo] = useState(true);
   
@@ -68,6 +71,22 @@ function App() {
     const prefersSaveData = Boolean(connection?.saveData);
 
     setShouldPlayHeroVideo(!(prefersReducedMotion || prefersSaveData));
+  }, []);
+
+  useEffect(() => {
+    const syncShopState = () => {
+      setWishlist(getWishlistIds());
+      setCartCount(getCartCount());
+    };
+
+    const shopEvent = getShopStorageEventName();
+    window.addEventListener('storage', syncShopState);
+    window.addEventListener(shopEvent, syncShopState);
+
+    return () => {
+      window.removeEventListener('storage', syncShopState);
+      window.removeEventListener(shopEvent, syncShopState);
+    };
   }, []);
 
   useEffect(() => {
@@ -177,9 +196,18 @@ function App() {
   }, []);
 
   const toggleWishlist = (id: number) => {
-    setWishlist(prev => 
-      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
-    );
+    setWishlist(toggleWishlistItem(id));
+  };
+
+  const addProductToCart = (product: (typeof products)[0]) => {
+    addToCart({
+      id: product.id,
+      name: product.name,
+      price: product.price,
+      image: product.image,
+      quantity: 1,
+    });
+    setCartCount(getCartCount());
   };
 
   const openProductDialog = (product: typeof products[0]) => {
@@ -223,14 +251,30 @@ function App() {
               <button className="p-2 hover:text-gold transition-colors">
                 <Search className="w-5 h-5" />
               </button>
-              <button className="p-2 hover:text-gold transition-colors relative">
+              <a
+                href="/wishlist"
+                className="p-2 hover:text-gold transition-colors relative"
+                aria-label="Open wishlist"
+              >
                 <Heart className="w-5 h-5" />
                 {wishlist.length > 0 && (
                   <span className="absolute -top-1 -right-1 w-4 h-4 bg-gold text-charcoal text-xs rounded-full flex items-center justify-center">
                     {wishlist.length}
                   </span>
                 )}
-              </button>
+              </a>
+              <a
+                href="/cart"
+                className="p-2 hover:text-gold transition-colors relative"
+                aria-label="Shopping cart"
+              >
+                <ShoppingBag className="w-5 h-5" />
+                {cartCount > 0 && (
+                  <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 bg-gold text-charcoal text-xs rounded-full flex items-center justify-center">
+                    {cartCount}
+                  </span>
+                )}
+              </a>
               
               {/* Mobile Menu */}
               <Sheet open={isNavOpen} onOpenChange={setIsNavOpen}>
@@ -343,15 +387,19 @@ function App() {
               Step into a world of refined luxury. Our latest collection features bold gold chains, 
               delicate pendants, and statement earrings designed to captivate and inspire.
             </p>
-            <a href="#products" className="btn-luxury inline-flex items-center gap-2">
+            <a href="/collections/bridal-collection" className="btn-luxury inline-flex items-center gap-2">
               View Lookbook
               <ArrowRight className="w-5 h-5" />
             </a>
           </div>
           
           <div className="lg:w-2/3 grid grid-cols-1 md:grid-cols-3 gap-6">
-            {collections.map((collection, index) => (
-              <div key={index} className="collection-card group relative overflow-hidden cursor-pointer">
+            {collections.map((collection) => (
+              <a
+                key={collection.slug}
+                href={`/collections/${collection.slug}`}
+                className="collection-card group relative overflow-hidden cursor-pointer block"
+              >
                 <div className="aspect-[2/3] overflow-hidden">
                   <img 
                     src={collection.image} 
@@ -366,7 +414,7 @@ function App() {
                   </span>
                   <h3 className="font-serif text-xl text-white">{collection.name}</h3>
                 </div>
-              </div>
+              </a>
             ))}
           </div>
         </div>
@@ -483,12 +531,20 @@ function App() {
                   />
                 </button>
                 <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-charcoal to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button 
-                    onClick={() => openProductDialog(product)}
-                    className="w-full btn-primary-luxury text-center"
-                  >
-                    Quick View
-                  </button>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button 
+                      onClick={() => openProductDialog(product)}
+                      className="w-full btn-primary-luxury text-center"
+                    >
+                      Quick View
+                    </button>
+                    <button
+                      onClick={() => addProductToCart(product)}
+                      className="w-full border border-gold text-gold hover:bg-gold hover:text-charcoal transition-colors text-sm"
+                    >
+                      Add Cart
+                    </button>
+                  </div>
                 </div>
               </div>
               <div className="p-6">
