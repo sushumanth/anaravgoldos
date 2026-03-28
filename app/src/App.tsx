@@ -31,7 +31,8 @@ function App() {
   const [isProductDialogOpen, setIsProductDialogOpen] = useState(false);
   const [isWhatsAppDialogOpen, setIsWhatsAppDialogOpen] = useState(false);
   const [isAppointmentDialogOpen, setIsAppointmentDialogOpen] = useState(false);
-  const [wishlist, setWishlist] = useState<number[]>([]);
+  const [wishlist, setWishlist] = useState<number[]>(() => getWishlistIds());
+  const [cartCount, setCartCount] = useState(() => getCartCount());
   const [isHeroVideoReady, setIsHeroVideoReady] = useState(false);
   const [shouldPlayHeroVideo, setShouldPlayHeroVideo] = useState(true);
   const [isCartBumpActive, setIsCartBumpActive] = useState(false);
@@ -169,9 +170,18 @@ function App() {
   }, []);
 
   const toggleWishlist = (id: number) => {
-    setWishlist(prev => 
-      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
-    );
+    setWishlist(toggleWishlistItem(id));
+  };
+
+  const addProductToCart = (product: (typeof products)[0]) => {
+    addToCart({
+      id: product.id,
+      name: product.name,
+      price: product.price,
+      image: product.image,
+      quantity: 1,
+    });
+    setCartCount(getCartCount());
   };
 
   const openProductDialog = (product: typeof products[0]) => {
@@ -215,7 +225,11 @@ function App() {
               <button className="p-2 hover:text-gold transition-colors">
                 <Search className="w-5 h-5" />
               </button>
-              <button className="p-2 hover:text-gold transition-colors relative">
+              <a
+                href="/wishlist"
+                className="p-2 hover:text-gold transition-colors relative"
+                aria-label="Open wishlist"
+              >
                 <Heart className="w-5 h-5" />
                 {wishlist.length > 0 && (
                   <span className="absolute -top-1 -right-1 w-4 h-4 bg-gold text-charcoal text-xs rounded-full flex items-center justify-center">
@@ -348,15 +362,19 @@ function App() {
               Step into a world of refined luxury. Our latest collection features bold gold chains, 
               delicate pendants, and statement earrings designed to captivate and inspire.
             </p>
-            <a href="#products" className="btn-luxury inline-flex items-center gap-2">
+            <a href="/collections/bridal-collection" className="btn-luxury inline-flex items-center gap-2">
               View Lookbook
               <ArrowRight className="w-5 h-5" />
             </a>
           </div>
           
           <div className="lg:w-2/3 grid grid-cols-1 md:grid-cols-3 gap-6">
-            {collections.map((collection, index) => (
-              <div key={index} className="collection-card group relative overflow-hidden cursor-pointer">
+            {collections.map((collection) => (
+              <a
+                key={collection.slug}
+                href={`/collections/${collection.slug}`}
+                className="collection-card group relative overflow-hidden cursor-pointer block"
+              >
                 <div className="aspect-[2/3] overflow-hidden">
                   <img 
                     src={collection.image} 
@@ -371,7 +389,7 @@ function App() {
                   </span>
                   <h3 className="font-serif text-xl text-white">{collection.name}</h3>
                 </div>
-              </div>
+              </a>
             ))}
           </div>
         </div>
@@ -493,12 +511,20 @@ function App() {
                   />
                 </button>
                 <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-charcoal to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button 
-                    onClick={() => openProductDialog(product)}
-                    className="w-full btn-primary-luxury text-center"
-                  >
-                    Quick View
-                  </button>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button 
+                      onClick={() => openProductDialog(product)}
+                      className="w-full btn-primary-luxury text-center"
+                    >
+                      Quick View
+                    </button>
+                    <button
+                      onClick={() => addProductToCart(product)}
+                      className="w-full border border-gold text-gold hover:bg-gold hover:text-charcoal transition-colors text-sm"
+                    >
+                      Add Cart
+                    </button>
+                  </div>
                 </div>
               </div>
               <div className="p-6">
