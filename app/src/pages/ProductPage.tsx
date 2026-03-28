@@ -315,7 +315,15 @@ function ProductPage() {
                   <h1 className="font-serif text-2xl md:text-3xl leading-tight max-w-[92%]">{product.name}</h1>
                   <button
                     type="button"
-                    onClick={() => setWishlisted((prev) => !prev)}
+                    onClick={() => {
+                      setWishlisted((prev) => {
+                        const next = !prev;
+                        if (next) {
+                          toast.success(`${productName} added to wishlist.`);
+                        }
+                        return next;
+                      });
+                    }}
                     className="text-gray-300 hover:text-gold transition-colors"
                     aria-label="Add to wishlist"
                   >

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
+import { toast } from 'sonner';
 import { 
   Menu, Phone, Mail, MapPin,
   Heart, Search, Star, Award, Shield, Gem, ShoppingBag,
@@ -22,6 +23,7 @@ import { Badge } from '@/components/ui/badge';
 import { useCart } from '@/context/CartContext';
 import { categories, products, toCategorySlug } from '@/data/catalog';
 import { collections as landingCollections } from '@/data/collections';
+import { getShopStorageEventName, getWishlistIds, toggleWishlistItem } from '@/lib/shop-storage';
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -32,7 +34,7 @@ function App() {
   const [isProductDialogOpen, setIsProductDialogOpen] = useState(false);
   const [isWhatsAppDialogOpen, setIsWhatsAppDialogOpen] = useState(false);
   const [isAppointmentDialogOpen, setIsAppointmentDialogOpen] = useState(false);
-  const [wishlist, setWishlist] = useState<number[]>([]);
+  const [wishlist, setWishlist] = useState<number[]>(() => getWishlistIds());
   const [isHeroVideoReady, setIsHeroVideoReady] = useState(false);
   const [shouldPlayHeroVideo] = useState(() => {
     if (typeof window === 'undefined') {
@@ -159,12 +161,28 @@ function App() {
     return () => ctx.revert();
   }, []);
 
+  useEffect(() => {
+    const syncWishlist = () => setWishlist(getWishlistIds());
+    const shopStorageEvent = getShopStorageEventName();
+
+    window.addEventListener(shopStorageEvent, syncWishlist);
+    window.addEventListener('storage', syncWishlist);
+
+    return () => {
+      window.removeEventListener(shopStorageEvent, syncWishlist);
+      window.removeEventListener('storage', syncWishlist);
+    };
+  }, []);
+
   const toggleWishlist = (id: number) => {
-    setWishlist((previous) =>
-      previous.includes(id)
-        ? previous.filter((wishlistId) => wishlistId !== id)
-        : [...previous, id],
-    );
+    const isAdding = !wishlist.includes(id);
+    const updated = toggleWishlistItem(id);
+    setWishlist(updated);
+
+    if (isAdding) {
+      const productName = products.find((item) => item.id === id)?.name ?? 'Product';
+      toast.success(`${productName} added to wishlist.`);
+    }
   };
 
   const addProductToCart = (product: (typeof products)[0]) => {
@@ -181,6 +199,7 @@ function App() {
         size: '6',
       },
     });
+    toast.success(`${product.name} added to cart.`);
   };
 
   const openProductDialog = (product: typeof products[0]) => {
@@ -231,7 +250,7 @@ function App() {
               >
                 <Heart className="w-5 h-5" />
                 {wishlist.length > 0 && (
-                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-gold text-charcoal text-xs rounded-full flex items-center justify-center">
+                  <span className="absolute -top-1 -right-1 min-w-5 h-5 px-1 bg-gold text-charcoal text-[10px] rounded-full flex items-center justify-center font-semibold">
                     {wishlist.length}
                   </span>
                 )}

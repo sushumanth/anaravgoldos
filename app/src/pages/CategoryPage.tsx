@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Heart, ShoppingBag, SlidersHorizontal } from 'lucide-react';
+import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -98,9 +99,17 @@ function CategoryPage() {
   };
 
   const toggleWishlist = (id: number) => {
-    setWishlist((previous) =>
-      previous.includes(id) ? previous.filter((wishlistId) => wishlistId !== id) : [...previous, id],
-    );
+    setWishlist((previous) => {
+      const isAdding = !previous.includes(id);
+      if (isAdding) {
+        const productName = products.find((item) => item.id === id)?.name ?? 'Product';
+        toast.success(`${productName} added to wishlist.`);
+      }
+
+      return previous.includes(id)
+        ? previous.filter((wishlistId) => wishlistId !== id)
+        : [...previous, id];
+    });
   };
 
   const toggleMetal = (metal: MetalType) => {

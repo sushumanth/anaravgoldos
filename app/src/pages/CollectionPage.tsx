@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { ArrowLeft, ChevronDown, Heart, Star, X } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
+import { toast } from 'sonner';
 import { collections } from '../data/collections';
 import { getWishlistIds, toggleWishlistItem } from '../lib/shop-storage';
 import { useCart } from '../context/CartContext';
@@ -155,7 +156,14 @@ function CollectionPage() {
   };
 
   const toggleProductWishlist = (productId: number) => {
-    setWishlistIds(toggleWishlistItem(productId));
+    const isAdding = !wishlistIds.includes(productId);
+    const nextIds = toggleWishlistItem(productId);
+    setWishlistIds(nextIds);
+
+    if (isAdding) {
+      const productName = products.find((item) => item.id === productId)?.name ?? 'Product';
+      toast.success(`${productName} added to wishlist.`);
+    }
   };
 
   const addCollectionProductToCart = (product: {
@@ -179,6 +187,7 @@ function CollectionPage() {
         size: '6',
       },
     });
+    toast.success(`${product.name} added to cart.`);
     setCartMessage(`${product.name} added to cart.`);
     window.setTimeout(() => setCartMessage(''), 2000);
   };

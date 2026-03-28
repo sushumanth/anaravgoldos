@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { ArrowLeft, Heart, Info, Plus, Share2, Star } from 'lucide-react';
 import { useParams } from 'react-router-dom';
+import { toast } from 'sonner';
 import { collections } from '../data/collections';
 import { getWishlistIds, toggleWishlistItem } from '../lib/shop-storage';
 import { useCart } from '../context/CartContext';
@@ -107,10 +108,17 @@ function ProductDetailPage() {
     setCartMessage(
       `Added to cart: ${selectedMetal}, ${selectedCaratWeight} ct. tw., ${diamondType}, size ${selectedRingSize}.`
     );
+    toast.success(`${product.name} added to cart.`);
   };
 
   const handleToggleWishlist = (itemId: number) => {
-    setWishlistIds(toggleWishlistItem(itemId));
+    const isAdding = !wishlistIds.includes(itemId);
+    const nextIds = toggleWishlistItem(itemId);
+    setWishlistIds(nextIds);
+
+    if (isAdding) {
+      toast.success(`${product.name} added to wishlist.`);
+    }
   };
 
   return (
