@@ -1,12 +1,10 @@
 import { useState } from 'react';
 import { ArrowLeft, Heart, Info, Plus, Share2, Star } from 'lucide-react';
+import { useParams } from 'react-router-dom';
+import { toast } from 'sonner';
 import { collections } from '../data/collections';
-import { addToCart, getWishlistIds, toggleWishlistItem } from '../lib/shop-storage';
-
-type ProductDetailPageProps = {
-  slug: string;
-  productId: number;
-};
+import { getWishlistIds, toggleWishlistItem } from '../lib/shop-storage';
+import { useCart } from '../context/CartContext';
 
 function detectMetal(name: string) {
   const lower = name.toLowerCase();
@@ -39,26 +37,31 @@ const caratOptions = [
   { value: '11', multiplier: 1.7 },
 ] as const;
 
-function ProductDetailPage({ slug, productId }: ProductDetailPageProps) {
+function ProductDetailPage() {
+  const params = useParams();
+  const slug = params.slug ?? '';
+  const productId = Number(params.productId);
+  const { addToCart } = useCart();
   const collection = collections.find((item) => item.slug === slug);
   const product = collection?.products.find((item) => item.id === productId);
+
+  const inferredMetal = detectMetal(product?.name ?? '');
+  const defaultMetal =
+    metalOptions.find((option) => option.metal === inferredMetal)?.id ?? '14k-white';
+  const defaultDiamondType = product?.badges.includes('Lab Grown')
+    ? 'Lab-Grown Diamond'
+    : 'Natural Diamond';
+  const [selectedMetalOption, setSelectedMetalOption] = useState<string>(defaultMetal);
+  const [selectedCaratWeight, setSelectedCaratWeight] = useState('5');
+  const [selectedRingSize, setSelectedRingSize] = useState('');
+  const [selectedDiamondType, setSelectedDiamondType] = useState(defaultDiamondType);
+  const [wishlistIds, setWishlistIds] = useState<number[]>(() => getWishlistIds());
+  const [cartMessage, setCartMessage] = useState('');
 
   if (!collection || !product) {
     window.location.replace('/');
     return null;
   }
-
-  const inferredMetal = detectMetal(product.name);
-  const defaultMetal =
-    metalOptions.find((option) => option.metal === inferredMetal)?.id ?? '14k-white';
-  const [selectedMetalOption, setSelectedMetalOption] = useState<string>(defaultMetal);
-  const [selectedCaratWeight, setSelectedCaratWeight] = useState('5');
-  const [selectedRingSize, setSelectedRingSize] = useState('');
-  const [selectedDiamondType, setSelectedDiamondType] = useState(
-    product.badges.includes('Lab Grown') ? 'Lab-Grown Diamond' : 'Natural Diamond'
-  );
-  const [wishlistIds, setWishlistIds] = useState<number[]>(() => getWishlistIds());
-  const [cartMessage, setCartMessage] = useState('');
 
   const basePrice = Number(product.price.replace(/[^0-9.]/g, ''));
   const metalMultiplier =
@@ -90,26 +93,32 @@ function ProductDetailPage({ slug, productId }: ProductDetailPageProps) {
       return;
     }
     addToCart({
-      id: product.id,
-      slug: collection.slug,
+      productId: product.id,
       name: product.name,
-      price: calculatedPrice,
       image: product.image,
+      unitPrice: calculatedPrice,
       quantity: 1,
-      options: {
+      selection: {
         metal: selectedMetal,
-        ringSize: selectedRingSize,
-        caratWeight: selectedCaratWeight,
-        diamondType,
+        size: selectedRingSize,
+        carat: Number(selectedCaratWeight),
+        diamondType: selectedDiamondType,
       },
     });
     setCartMessage(
       `Added to cart: ${selectedMetal}, ${selectedCaratWeight} ct. tw., ${diamondType}, size ${selectedRingSize}.`
     );
+    toast.success(`${product.name} added to cart.`);
   };
 
   const handleToggleWishlist = (itemId: number) => {
-    setWishlistIds(toggleWishlistItem(itemId));
+    const isAdding = !wishlistIds.includes(itemId);
+    const nextIds = toggleWishlistItem(itemId);
+    setWishlistIds(nextIds);
+
+    if (isAdding) {
+      toast.success(`${product.name} added to wishlist.`);
+    }
   };
 
   return (

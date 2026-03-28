@@ -1,0 +1,491 @@
+import { useEffect, useMemo, useState } from 'react';
+import { Link, useParams } from 'react-router-dom';
+import { ArrowLeft, Heart, Info, Loader2, Share2, ShoppingBag, Star, Truck } from 'lucide-react';
+import { toast } from 'sonner';
+
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { useCart } from '@/context/CartContext';
+import { useIsMobile } from '@/hooks/use-mobile';
+import {
+  getProductDetailById,
+  toCategorySlug,
+  type DiamondType,
+  type MetalType,
+} from '@/data/catalog';
+
+const metalMultiplier: Record<MetalType, number> = {
+  Gold: 1,
+  Diamond: 1.18,
+  Platinum: 1.26,
+};
+
+const diamondMultiplier: Record<DiamondType, number> = {
+  Natural: 1.15,
+  'Lab-Grown': 1,
+};
+
+const caratMultiplier: Record<number, number> = {
+  2: 0.88,
+  3: 1,
+  4: 1.16,
+  5: 1.29,
+  6: 1.45,
+};
+
+function ProductPage() {
+  const { productId = '' } = useParams();
+  const isMobile = useIsMobile();
+  const { addToCart, totalItems } = useCart();
+  const resolvedProductId = Number(productId);
+
+  const [product, setProduct] = useState<ReturnType<typeof getProductDetailById>>(null);
+  const [loadedProductId, setLoadedProductId] = useState<number | null>(null);
+  const [activeImageIndex, setActiveImageIndex] = useState(0);
+  const [wishlisted, setWishlisted] = useState(false);
+
+  const [selectedMetal, setSelectedMetal] = useState<MetalType>('Gold');
+  const [selectedCarat, setSelectedCarat] = useState(3);
+  const [selectedDiamondType, setSelectedDiamondType] = useState<DiamondType>('Lab-Grown');
+  const [selectedRingSize, setSelectedRingSize] = useState('');
+  const [isAddingToCart, setIsAddingToCart] = useState(false);
+  const isLoading = loadedProductId !== resolvedProductId;
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      const nextProduct = getProductDetailById(resolvedProductId);
+      setProduct(nextProduct);
+      setLoadedProductId(resolvedProductId);
+
+      if (nextProduct) {
+        setSelectedMetal(nextProduct.metalOptions[0]);
+        setSelectedCarat(nextProduct.caratOptions.includes(3) ? 3 : nextProduct.caratOptions[0]);
+        setSelectedDiamondType('Lab-Grown');
+        setSelectedRingSize('');
+        setActiveImageIndex(0);
+      }
+    }, 260);
+
+    return () => window.clearTimeout(timer);
+  }, [resolvedProductId]);
+
+  const activeImage = useMemo(() => {
+    if (!product) {
+      return '';
+    }
+
+    return product.gallery[activeImageIndex] ?? product.gallery[0];
+  }, [activeImageIndex, product]);
+
+  const productName = product?.name ?? 'Jewelry product';
+
+  const price = useMemo(() => {
+    if (!product) {
+      return 0;
+    }
+
+    const calculated =
+      product.price *
+      metalMultiplier[selectedMetal] *
+      (caratMultiplier[selectedCarat] ?? 1) *
+      diamondMultiplier[selectedDiamondType];
+
+    return Math.round(calculated / 100) * 100;
+  }, [selectedCarat, selectedDiamondType, selectedMetal, product]);
+
+  const monthlyEmi = useMemo(() => {
+    if (!product) {
+      return 0;
+    }
+
+    return Math.round(price / product.emiMonths);
+  }, [price, product]);
+
+  const formatPrice = (value: number) =>
+    new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: 'INR',
+      maximumFractionDigits: 0,
+    }).format(value);
+
+  const canAddToCart = Boolean(
+    product && selectedMetal && selectedCarat && selectedDiamondType && selectedRingSize && !isAddingToCart,
+  );
+
+  const handleShare = async () => {
+    const data = {
+      title: productName,
+      text: `Check out this jewelry piece: ${productName}`,
+      url: window.location.href,
+    };
+
+    try {
+      if (navigator.share) {
+        await navigator.share(data);
+      } else {
+        await navigator.clipboard.writeText(window.location.href);
+      }
+    } catch {
+      // noop
+    }
+  };
+
+  const handleAddToCart = async () => {
+    if (!product || !selectedRingSize) {
+      toast.error('Please select required options before adding to cart.');
+      return;
+    }
+
+    setIsAddingToCart(true);
+
+    await new Promise((resolve) => window.setTimeout(resolve, 320));
+
+    addToCart({
+      productId: product.id,
+      name: product.name,
+      image: product.image,
+      unitPrice: price,
+      quantity: 1,
+      selection: {
+        metal: selectedMetal,
+        carat: selectedCarat,
+        diamondType: selectedDiamondType,
+        size: selectedRingSize,
+      },
+    });
+
+    setIsAddingToCart(false);
+    toast.success('Added to Cart');
+  };
+
+  if (!isLoading && !product) {
+    return (
+      <main className="min-h-screen bg-charcoal text-white page-fade-in section-padding py-20">
+        <div className="max-w-3xl mx-auto border border-white/10 bg-charcoal-light p-10 text-center">
+          <h1 className="heading-md mb-3">Product Not Found</h1>
+          <p className="text-gray-400 mb-6">We could not locate this product.</p>
+          <Link to="/" className="btn-primary-luxury inline-flex items-center gap-2">
+            <ArrowLeft className="w-4 h-4" />
+            Back to Home
+          </Link>
+        </div>
+      </main>
+    );
+  }
+
+  return (
+    <main className="min-h-screen bg-charcoal text-white page-fade-in pb-20 md:pb-8">
+      <section className="section-padding pt-10 md:pt-10 pb-2 md:pb-3 border-b border-white/5 bg-charcoal-light/45">
+        <div className="max-w-7xl mx-auto flex items-center justify-between gap-3">
+          <Link
+            to={product ? `/category/${toCategorySlug(product.category)}` : '/'}
+            className="inline-flex items-center gap-2 text-sm text-gold hover:text-gold-light transition-colors"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Back To Gallery
+          </Link>
+          <div className="flex items-center gap-2 md:gap-3">
+            <button
+              type="button"
+              onClick={handleShare}
+              className="inline-flex items-center gap-2 text-sm text-gray-300 hover:text-gold transition-colors"
+            >
+              <Share2 className="w-4 h-4" />
+              Share
+            </button>
+            <Link to="/cart" className="relative p-2 text-gray-300 hover:text-gold transition-colors" aria-label="Open cart">
+              <ShoppingBag className="w-5 h-5" />
+              {totalItems > 0 && (
+                <span className="absolute -top-1 -right-1 min-w-5 h-5 px-1 bg-gold text-charcoal text-[10px] rounded-full flex items-center justify-center font-semibold">
+                  {totalItems}
+                </span>
+              )}
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      <section className="section-padding pt-3 md:pt-4 pb-10">
+        <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-[1.3fr_0.9fr] gap-7 lg:gap-10">
+          <div>
+            {isLoading && (
+              <div className="space-y-4">
+                <div className="aspect-[4/5] max-h-[74vh] bg-white/5 skeleton-shimmer" />
+                <div className="grid grid-cols-4 gap-3">
+                  {Array.from({ length: 4 }).map((_, index) => (
+                    <div key={index} className="aspect-square bg-white/5 skeleton-shimmer" />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {!isLoading && product && (
+              <>
+                {isMobile ? (
+                  <div className="space-y-3">
+                    <div
+                      className="flex overflow-x-auto snap-x snap-mandatory gap-3 scrollbar-hide"
+                      onScroll={(event) => {
+                        const container = event.currentTarget;
+                        const index = Math.round(container.scrollLeft / container.clientWidth);
+                        if (index !== activeImageIndex) {
+                          setActiveImageIndex(index);
+                        }
+                      }}
+                    >
+                      {product.gallery.map((image, index) => (
+                        <div key={`${image}-${index}`} className="min-w-full snap-center">
+                          <div className="aspect-[4/5] max-h-[62vh] bg-[#111] border border-white/10 overflow-hidden flex items-center justify-center">
+                            <img
+                              src={image}
+                              alt={`${productName} view ${index + 1}`}
+                              loading={index === 0 ? 'eager' : 'lazy'}
+                              decoding="async"
+                              className="w-full h-full object-contain"
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="flex justify-center gap-2">
+                      {product.gallery.map((_, index) => (
+                        <button
+                          key={index}
+                          type="button"
+                          onClick={() => setActiveImageIndex(index)}
+                          className={`h-1.5 rounded-full transition-all ${
+                            activeImageIndex === index ? 'w-8 bg-gold' : 'w-3 bg-white/25'
+                          }`}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="aspect-[4/5] max-h-[76vh] bg-[#111] border border-white/10 overflow-hidden flex items-center justify-center group">
+                      <img
+                        src={activeImage}
+                        alt={productName}
+                        loading="eager"
+                        decoding="async"
+                        className="w-full h-full object-contain transition-transform duration-700 group-hover:scale-110"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-4 gap-3">
+                      {product.gallery.map((image, index) => (
+                        <button
+                          key={`${image}-${index}`}
+                          type="button"
+                          onClick={() => setActiveImageIndex(index)}
+                          className={`aspect-square bg-[#111] border overflow-hidden flex items-center justify-center transition-colors ${
+                            activeImageIndex === index ? 'border-gold' : 'border-white/10 hover:border-gold/60'
+                          }`}
+                        >
+                          <img
+                            src={image}
+                            alt={`${productName} thumb ${index + 1}`}
+                            loading="lazy"
+                            decoding="async"
+                            className="w-full h-full object-contain"
+                          />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+
+          <div className="lg:sticky lg:top-24 h-fit border border-white/10 bg-charcoal-light p-5 md:p-6">
+            {isLoading && (
+              <div className="space-y-4">
+                <div className="h-9 w-4/5 bg-white/5 skeleton-shimmer rounded" />
+                <div className="h-5 w-1/3 bg-white/5 skeleton-shimmer rounded" />
+                <div className="h-8 w-1/4 bg-white/5 skeleton-shimmer rounded" />
+                <div className="h-48 w-full bg-white/5 skeleton-shimmer rounded" />
+              </div>
+            )}
+
+            {!isLoading && product && (
+              <div className="space-y-6">
+                <div className="flex items-start justify-between gap-4">
+                  <h1 className="font-serif text-2xl md:text-3xl leading-tight max-w-[92%]">{product.name}</h1>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setWishlisted((prev) => {
+                        const next = !prev;
+                        if (next) {
+                          toast.success(`${productName} added to wishlist.`);
+                        }
+                        return next;
+                      });
+                    }}
+                    className="text-gray-300 hover:text-gold transition-colors"
+                    aria-label="Add to wishlist"
+                  >
+                    <Heart className={`w-5 h-5 ${wishlisted ? 'fill-gold text-gold' : ''}`} />
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-0.5 text-gold">
+                    {Array.from({ length: 5 }).map((_, index) => (
+                      <Star key={index} className="w-4 h-4 fill-current" />
+                    ))}
+                  </div>
+                  <span className="text-sm text-gray-300">({product.reviewsCount})</span>
+                </div>
+
+                <p className="text-3xl md:text-4xl font-semibold text-gold">{formatPrice(price)}</p>
+                <p className="text-sm text-gray-300 inline-flex items-center gap-1">
+                  Starting at {product.emiMonths} payments of
+                  <span className="text-white font-semibold">{formatPrice(monthlyEmi)}</span>
+                  <Info className="w-3.5 h-3.5" />
+                </p>
+
+                <div className="pt-5 border-t border-white/10 space-y-5">
+                  <div>
+                    <p className="text-base text-white mb-2">
+                      Metal Type: <span className="text-gold font-semibold">{selectedMetal}</span>
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {product.metalOptions.map((option) => (
+                        <button
+                          key={option}
+                          type="button"
+                          onClick={() => setSelectedMetal(option)}
+                          className={`pdp-option-chip ${selectedMetal === option ? 'active' : ''}`}
+                        >
+                          {option}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <p className="text-base text-white mb-2">
+                      Total Carat Weight: <span className="text-gold font-semibold">{selectedCarat} ct. tw.</span>
+                    </p>
+                    <div className="grid grid-cols-5 gap-2">
+                      {product.caratOptions.map((carat) => {
+                        const disabled = selectedMetal === 'Platinum' && carat === 6;
+                        return (
+                          <button
+                            key={carat}
+                            type="button"
+                            onClick={() => setSelectedCarat(carat)}
+                            disabled={disabled}
+                            className={`pdp-option-chip ${selectedCarat === carat ? 'active' : ''}`}
+                          >
+                            {carat}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div>
+                    <p className="text-base text-white mb-2">
+                      Diamond Type: <span className="text-gold font-semibold">{selectedDiamondType}</span>
+                    </p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {product.diamondOptions.map((type) => (
+                        <button
+                          key={type}
+                          type="button"
+                          onClick={() => setSelectedDiamondType(type)}
+                          className={`pdp-option-chip ${selectedDiamondType === type ? 'active' : ''}`}
+                        >
+                          {type}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between border border-white/20 px-3 py-2.5">
+                      <span className="text-sm text-gray-300">Ring Size:</span>
+                      <select
+                        value={selectedRingSize}
+                        onChange={(event) => setSelectedRingSize(event.target.value)}
+                        className="bg-transparent text-sm text-white focus:outline-none"
+                      >
+                        <option value="" className="bg-charcoal text-white">
+                          Select
+                        </option>
+                        {product.ringSizes.map((size) => {
+                          const disabled = product.unavailableRingSizes.includes(size);
+                          return (
+                            <option key={size} value={size} disabled={disabled} className="bg-charcoal text-white">
+                              {disabled ? `${size} (Unavailable)` : size}
+                            </option>
+                          );
+                        })}
+                      </select>
+                    </div>
+                    <p className="text-xs text-gray-400 mt-2">*This ring cannot be resized</p>
+                  </div>
+
+                  <div className="space-y-1 text-sm text-gray-300">
+                    <p className="inline-flex items-center gap-2">
+                      <Truck className="w-4 h-4 text-gold" />
+                      Ships by: <span className="text-white font-semibold">{product.shipsBy}</span>
+                    </p>
+                    <p className={product.inStock ? 'text-emerald-400' : 'text-amber-400'}>
+                      {product.inStock ? 'In Stock' : 'Made to Order'}
+                    </p>
+                  </div>
+
+                  <div className="hidden md:grid grid-cols-[1fr_auto] gap-3">
+                    <Button
+                      onClick={handleAddToCart}
+                      disabled={!canAddToCart}
+                      className="h-12 bg-gold text-charcoal font-semibold tracking-wide hover:bg-gold-light disabled:opacity-60"
+                    >
+                      {isAddingToCart ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                      Add To Cart
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={handleShare}
+                      className="h-12 border-white/30 text-white hover:border-gold hover:text-gold"
+                    >
+                      Share
+                    </Button>
+                  </div>
+
+                  {product.isNew && <Badge className="bg-gold text-charcoal">New Arrival</Badge>}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
+
+      {!isLoading && product && (
+        <div className="fixed bottom-0 left-0 right-0 z-40 md:hidden border-t border-white/10 bg-charcoal/95 backdrop-blur-md p-3">
+          <div className="section-padding !px-0 flex items-center gap-3">
+            <div className="flex-1 min-w-0">
+              <p className="text-xs text-gray-400 truncate">{product.name}</p>
+              <p className="text-gold font-semibold">{formatPrice(price)}</p>
+            </div>
+            <Button
+              onClick={handleAddToCart}
+              disabled={!canAddToCart}
+              className="h-11 bg-gold text-charcoal font-semibold hover:bg-gold-light disabled:opacity-60"
+            >
+              {isAddingToCart ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+              Add To Cart
+            </Button>
+          </div>
+        </div>
+      )}
+    </main>
+  );
+}
+
+export default ProductPage;

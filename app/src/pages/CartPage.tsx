@@ -1,12 +1,9 @@
-import { useMemo, useState } from 'react';
-import { ArrowLeft, Minus, Plus, Trash2 } from 'lucide-react';
-import {
-  clearCart,
-  getCartItems,
-  removeCartItemByIndex,
-  setCartItemQuantityByIndex,
-  type CartItem,
-} from '../lib/shop-storage';
+import { Link } from 'react-router-dom';
+import { ArrowLeft, CreditCard, Minus, Plus, Trash2 } from 'lucide-react';
+
+import { Button } from '@/components/ui/button';
+import { useCart } from '@/context/CartContext';
+import { collections } from '@/data/collections';
 
 function formatPrice(value: number) {
   return new Intl.NumberFormat('en-IN', {
@@ -17,43 +14,34 @@ function formatPrice(value: number) {
 }
 
 function CartPage() {
-  const [cartItems, setCartItems] = useState<CartItem[]>(() => getCartItems());
+  const { cartItems, totalItems, subtotal, updateQuantity, removeFromCart, clearCart } = useCart();
 
-  const cartTotal = useMemo(
-    () => cartItems.reduce((total, item) => total + item.price * item.quantity, 0),
-    [cartItems]
-  );
+  const shipping = subtotal > 150000 ? 0 : totalItems > 0 ? 1200 : 0;
+  const estimatedTotal = subtotal + shipping;
 
-  const totalUnits = useMemo(
-    () => cartItems.reduce((total, item) => total + item.quantity, 0),
-    [cartItems]
-  );
+  const getProductHref = (productId: number) => {
+    const collection = collections.find((item) =>
+      item.products.some((product) => product.id === productId),
+    );
 
-  const updateQuantity = (index: number, delta: number) => {
-    const currentQuantity = cartItems[index]?.quantity ?? 1;
-    const updated = setCartItemQuantityByIndex(index, currentQuantity + delta);
-    setCartItems(updated);
-  };
-
-  const removeItem = (index: number) => {
-    const updated = removeCartItemByIndex(index);
-    setCartItems(updated);
-  };
-
-  const clearAll = () => {
-    setCartItems(clearCart());
+    return collection
+      ? `/collections/${collection.slug}/product/${productId}`
+      : '/';
   };
 
   return (
-    <div className="min-h-screen bg-charcoal text-white">
+    <main className="min-h-screen bg-charcoal text-white page-fade-in pb-24 md:pb-12">
       <section className="section-padding py-4 border-b border-white/10">
-        <a
-          href="/"
-          className="inline-flex items-center gap-2 text-sm text-gold hover:text-gold-light transition-colors"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          Continue Shopping
-        </a>
+        <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
+          <Link
+            to="/"
+            className="inline-flex items-center gap-2 text-sm text-gold hover:text-gold-light transition-colors"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Continue Shopping
+          </Link>
+          <p className="text-sm text-gray-300">{totalItems} items</p>
+        </div>
       </section>
 
       <section className="section-padding py-7">
@@ -61,57 +49,66 @@ function CartPage() {
           <h1 className="font-serif text-3xl md:text-4xl text-white">Your Cart</h1>
           <div className="text-right text-sm text-gray-300">
             <p>{cartItems.length} products</p>
-            <p>{totalUnits} total units</p>
+            <p>{totalItems} total units</p>
           </div>
         </div>
 
         {cartItems.length === 0 ? (
           <div className="border border-white/10 bg-charcoal-light p-6 rounded-2xl">
             <p className="text-gray-300 mb-4">Your cart is empty.</p>
-            <a href="/" className="text-gold hover:text-gold-light transition-colors">
+            <Link to="/" className="text-gold hover:text-gold-light transition-colors">
               Start shopping
-            </a>
+            </Link>
           </div>
         ) : (
           <>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              {cartItems.map((item, index) => (
+              {cartItems.map((item) => (
                 <article
-                  key={`${item.id}-${index}`}
+                  key={item.key}
                   className="border border-white/15 bg-charcoal-light p-3.5 rounded-2xl hover:border-gold/40 transition-colors"
                 >
                   <div className="grid grid-cols-[84px_1fr_auto] gap-3 items-start">
-                    <img
-                      src={item.image}
-                      alt={item.name}
-                      className="w-[84px] h-[84px] object-cover border border-white/10 rounded-xl"
-                    />
+                    <Link to={getProductHref(item.productId)} className="group">
+                      <img
+                        src={item.image}
+                        alt={item.name}
+                        className="w-[84px] h-[84px] object-cover border border-white/10 rounded-xl transition-transform duration-300 group-hover:scale-[1.03]"
+                      />
+                    </Link>
 
                     <div>
-                      <h2 className="font-serif text-xl text-white mb-1 leading-tight line-clamp-2">{item.name}</h2>
-                      <p className="text-xl text-gold mb-1.5">{formatPrice(item.price)}</p>
+                      <Link
+                        to={getProductHref(item.productId)}
+                        className="font-serif text-xl text-white mb-1 leading-tight line-clamp-2 hover:text-gold transition-colors inline-block"
+                      >
+                        {item.name}
+                      </Link>
+                      <p className="text-xl text-gold mb-1.5">{formatPrice(item.unitPrice)}</p>
 
                       <div className="text-gray-300 text-sm space-y-0.5">
-                        <p>Metal: {item.options?.metal ?? 'Gold'}</p>
-                        <p>Carat: {item.options?.caratWeight ?? '3'} ct</p>
-                        <p>Diamond: {item.options?.diamondType ?? 'Lab-Grown'}</p>
-                        <p>Size: {item.options?.ringSize ?? 'Standard'}</p>
+                        <p>Metal: {item.selection.metal}</p>
+                        <p>Carat: {item.selection.carat} ct</p>
+                        <p>Diamond: {item.selection.diamondType}</p>
+                        <p>Size: {item.selection.size}</p>
                       </div>
 
                       <div className="mt-3 flex flex-wrap items-center gap-2">
                         <div className="h-9 border border-white/20 inline-flex items-center rounded-lg overflow-hidden">
                           <button
                             type="button"
-                            onClick={() => updateQuantity(index, -1)}
+                            onClick={() => updateQuantity(item.key, item.quantity - 1)}
                             className="h-full w-9 inline-flex items-center justify-center text-white hover:text-gold transition-colors"
+                            aria-label="Decrease quantity"
                           >
                             <Minus className="w-4 h-4" />
                           </button>
                           <span className="w-9 text-center text-sm">{item.quantity}</span>
                           <button
                             type="button"
-                            onClick={() => updateQuantity(index, 1)}
+                            onClick={() => updateQuantity(item.key, item.quantity + 1)}
                             className="h-full w-9 inline-flex items-center justify-center text-white hover:text-gold transition-colors"
+                            aria-label="Increase quantity"
                           >
                             <Plus className="w-4 h-4" />
                           </button>
@@ -119,7 +116,7 @@ function CartPage() {
 
                         <button
                           type="button"
-                          onClick={() => removeItem(index)}
+                          onClick={() => removeFromCart(item.key)}
                           className="h-9 px-3 border border-white/20 inline-flex items-center gap-2 text-sm rounded-lg hover:border-gold hover:text-gold transition-colors"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -129,7 +126,7 @@ function CartPage() {
                     </div>
 
                     <div className="text-xl text-white font-medium pt-0.5">
-                      {formatPrice(item.price * item.quantity)}
+                      {formatPrice(item.unitPrice * item.quantity)}
                     </div>
                   </div>
                 </article>
@@ -139,20 +136,42 @@ function CartPage() {
             <div className="mt-5 flex flex-wrap items-center justify-between gap-4">
               <button
                 type="button"
-                onClick={clearAll}
+                onClick={clearCart}
                 className="h-10 px-4 border border-white/25 text-sm rounded-lg hover:border-gold hover:text-gold transition-colors"
               >
                 Clear Cart
               </button>
               <div className="text-right bg-charcoal-light border border-white/10 rounded-xl px-4 py-2">
                 <p className="text-gray-400 text-sm">Cart Total</p>
-                <p className="text-2xl text-gold font-semibold">{formatPrice(cartTotal)}</p>
+                <p className="text-2xl text-gold font-semibold">{formatPrice(estimatedTotal)}</p>
               </div>
             </div>
+
+            <Button className="w-full mt-6 h-12 bg-gold text-charcoal font-semibold hover:bg-gold-light rounded-xl">
+              <CreditCard className="w-4 h-4 mr-2" />
+              Proceed To Checkout
+            </Button>
+            <p className="text-xs text-gray-500 mt-3">
+              Secure checkout integration ready for payment gateway connection.
+            </p>
           </>
         )}
       </section>
-    </div>
+
+      {cartItems.length > 0 && (
+        <div className="fixed bottom-0 left-0 right-0 md:hidden z-40 border-t border-white/10 bg-charcoal/95 backdrop-blur-md p-3">
+          <div className="section-padding !px-0 flex items-center gap-3">
+            <div className="min-w-0 flex-1">
+              <p className="text-xs text-gray-400">{totalItems} items</p>
+              <p className="text-gold font-semibold">{formatPrice(estimatedTotal)}</p>
+            </div>
+            <Button className="h-11 bg-gold text-charcoal font-semibold hover:bg-gold-light rounded-xl">
+              Checkout
+            </Button>
+          </div>
+        </div>
+      )}
+    </main>
   );
 }
 

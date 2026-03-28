@@ -1,11 +1,10 @@
 import { useMemo, useState } from 'react';
 import { ArrowLeft, ChevronDown, Heart, Star, X } from 'lucide-react';
+import { Link, useParams } from 'react-router-dom';
+import { toast } from 'sonner';
 import { collections } from '../data/collections';
-import { addToCart, getWishlistIds, toggleWishlistItem } from '../lib/shop-storage';
-
-type CollectionPageProps = {
-  slug: string;
-};
+import { getWishlistIds, toggleWishlistItem } from '../lib/shop-storage';
+import { useCart } from '../context/CartContext';
 
 type Audience = 'Women' | 'Men' | 'Unisex';
 type FilterKey = 'style' | 'diamondType' | 'metal' | 'priceBand';
@@ -64,8 +63,10 @@ function inferAudience(id: number): Audience {
   return map[id % 3];
 }
 
-function CollectionPage({ slug }: CollectionPageProps) {
+function CollectionPage() {
+  const { slug = '' } = useParams();
   const collection = collections.find((item) => item.slug === slug);
+  const { addToCart } = useCart();
   const audienceOptions: Audience[] = ['Women', 'Men', 'Unisex'];
   const [selectedAudience, setSelectedAudience] = useState<Audience | null>(null);
   const [activeFilter, setActiveFilter] = useState<FilterKey | null>(null);
@@ -155,7 +156,14 @@ function CollectionPage({ slug }: CollectionPageProps) {
   };
 
   const toggleProductWishlist = (productId: number) => {
-    setWishlistIds(toggleWishlistItem(productId));
+    const isAdding = !wishlistIds.includes(productId);
+    const nextIds = toggleWishlistItem(productId);
+    setWishlistIds(nextIds);
+
+    if (isAdding) {
+      const productName = products.find((item) => item.id === productId)?.name ?? 'Product';
+      toast.success(`${productName} added to wishlist.`);
+    }
   };
 
   const addCollectionProductToCart = (product: {
@@ -163,16 +171,23 @@ function CollectionPage({ slug }: CollectionPageProps) {
     name: string;
     price: string;
     image: string;
+    badges: string[];
   }) => {
     const numericPrice = Number(product.price.replace(/[^0-9.]/g, ''));
     addToCart({
-      id: product.id,
-      slug: collection.slug,
+      productId: product.id,
       name: product.name,
-      price: Number.isFinite(numericPrice) ? numericPrice : 0,
       image: product.image,
+      unitPrice: Number.isFinite(numericPrice) ? numericPrice : 0,
       quantity: 1,
+      selection: {
+        metal: detectMetal(product.name),
+        carat: 3,
+        diamondType: product.badges.includes('Lab Grown') ? 'Lab Grown' : 'Natural',
+        size: '6',
+      },
     });
+    toast.success(`${product.name} added to cart.`);
     setCartMessage(`${product.name} added to cart.`);
     window.setTimeout(() => setCartMessage(''), 2000);
   };
@@ -180,13 +195,13 @@ function CollectionPage({ slug }: CollectionPageProps) {
   return (
     <div className="min-h-screen bg-charcoal text-white">
       <div className="section-padding py-5 border-b border-white/10 bg-charcoal">
-        <a
-          href="/"
+        <Link
+          to="/"
           className="inline-flex items-center gap-2 text-sm text-gold hover:text-gold-light transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
           Back to Home
-        </a>
+        </Link>
       </div>
 
       <section className="section-padding py-7">
@@ -342,7 +357,7 @@ function CollectionPage({ slug }: CollectionPageProps) {
               key={product.id}
               className="group bg-white/[0.04] border border-white/10 rounded-sm overflow-hidden hover:border-gold/50 transition-colors"
             >
-              <a href={`/collections/${collection.slug}/product/${product.id}`} className="block">
+              <Link to={`/collections/${collection.slug}/product/${product.id}`} className="block">
                 <div className="relative aspect-[4/4.2] bg-black/30 overflow-hidden">
                   <img
                     src={product.image}
@@ -419,7 +434,7 @@ function CollectionPage({ slug }: CollectionPageProps) {
                     Add to Cart
                   </button>
                 </div>
-              </a>
+              </Link>
             </article>
           ))}
         </div>

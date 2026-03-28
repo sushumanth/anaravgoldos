@@ -215,6 +215,93 @@
   }
 }
 
+.page-fade-in {
+  animation: page-fade-in 320ms ease-out;
+}
+
+@keyframes page-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.skeleton-shimmer {
+  position: relative;
+  overflow: hidden;
+}
+
+.skeleton-shimmer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.08), transparent);
+  animation: skeleton-shimmer 1.2s infinite;
+}
+
+@keyframes skeleton-shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.product-card-premium {
+  transition: transform 0.35s ease, box-shadow 0.35s ease, border-color 0.35s ease;
+}
+
+.product-card-premium:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 40px rgba(197, 160, 89, 0.16);
+}
+
+.cart-bump {
+  animation: cart-bump 300ms ease-out;
+}
+
+@keyframes cart-bump {
+  0% {
+    transform: scale(1);
+  }
+  35% {
+    transform: scale(1.2);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.pdp-option-chip {
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.02);
+  color: rgba(255, 255, 255, 0.9);
+  padding: 0.5rem 0.8rem;
+  min-width: 3rem;
+  text-align: center;
+  font-size: 0.875rem;
+  transition: border-color 0.25s ease, color 0.25s ease, background-color 0.25s ease;
+}
+
+.pdp-option-chip:hover:not(:disabled) {
+  border-color: rgba(197, 160, 89, 0.8);
+  color: #d4af37;
+}
+
+.pdp-option-chip.active {
+  border-color: rgba(197, 160, 89, 0.95);
+  color: #1a1a1a;
+  background: #c5a059;
+}
+
+.pdp-option-chip:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
 @layer utilities {
   .bg-charcoal {
     background-color: #1A1A1A;
