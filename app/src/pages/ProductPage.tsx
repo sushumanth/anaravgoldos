@@ -12,13 +12,7 @@ import {
   toCategorySlug,
   type DiamondType,
   type MetalType,
-  type ProductDetail,
 } from '@/data/catalog';
-
-type LoadState = {
-  loading: boolean;
-  product: ProductDetail | null;
-};
 
 const metalMultiplier: Record<MetalType, number> = {
   Gold: 1,
@@ -43,8 +37,10 @@ function ProductPage() {
   const { productId = '' } = useParams();
   const isMobile = useIsMobile();
   const { addToCart, totalItems } = useCart();
+  const resolvedProductId = Number(productId);
 
-  const [state, setState] = useState<LoadState>({ loading: true, product: null });
+  const [product, setProduct] = useState<ReturnType<typeof getProductDetailById>>(null);
+  const [loadedProductId, setLoadedProductId] = useState<number | null>(null);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [wishlisted, setWishlisted] = useState(false);
 
@@ -53,18 +49,17 @@ function ProductPage() {
   const [selectedDiamondType, setSelectedDiamondType] = useState<DiamondType>('Lab-Grown');
   const [selectedRingSize, setSelectedRingSize] = useState('');
   const [isAddingToCart, setIsAddingToCart] = useState(false);
+  const isLoading = loadedProductId !== resolvedProductId;
 
   useEffect(() => {
-    setState({ loading: true, product: null });
-
-    const id = Number(productId);
     const timer = window.setTimeout(() => {
-      const product = getProductDetailById(id);
-      setState({ loading: false, product });
+      const nextProduct = getProductDetailById(resolvedProductId);
+      setProduct(nextProduct);
+      setLoadedProductId(resolvedProductId);
 
-      if (product) {
-        setSelectedMetal(product.metalOptions[0]);
-        setSelectedCarat(product.caratOptions.includes(3) ? 3 : product.caratOptions[0]);
+      if (nextProduct) {
+        setSelectedMetal(nextProduct.metalOptions[0]);
+        setSelectedCarat(nextProduct.caratOptions.includes(3) ? 3 : nextProduct.caratOptions[0]);
         setSelectedDiamondType('Lab-Grown');
         setSelectedRingSize('');
         setActiveImageIndex(0);
@@ -72,39 +67,39 @@ function ProductPage() {
     }, 260);
 
     return () => window.clearTimeout(timer);
-  }, [productId]);
+  }, [resolvedProductId]);
 
   const activeImage = useMemo(() => {
-    if (!state.product) {
+    if (!product) {
       return '';
     }
 
-    return state.product.gallery[activeImageIndex] ?? state.product.gallery[0];
-  }, [activeImageIndex, state.product]);
+    return product.gallery[activeImageIndex] ?? product.gallery[0];
+  }, [activeImageIndex, product]);
 
-  const productName = state.product?.name ?? 'Jewelry product';
+  const productName = product?.name ?? 'Jewelry product';
 
   const price = useMemo(() => {
-    if (!state.product) {
+    if (!product) {
       return 0;
     }
 
     const calculated =
-      state.product.price *
+      product.price *
       metalMultiplier[selectedMetal] *
       (caratMultiplier[selectedCarat] ?? 1) *
       diamondMultiplier[selectedDiamondType];
 
     return Math.round(calculated / 100) * 100;
-  }, [selectedCarat, selectedDiamondType, selectedMetal, state.product]);
+  }, [selectedCarat, selectedDiamondType, selectedMetal, product]);
 
   const monthlyEmi = useMemo(() => {
-    if (!state.product) {
+    if (!product) {
       return 0;
     }
 
-    return Math.round(price / state.product.emiMonths);
-  }, [price, state.product]);
+    return Math.round(price / product.emiMonths);
+  }, [price, product]);
 
   const formatPrice = (value: number) =>
     new Intl.NumberFormat('en-IN', {
@@ -114,7 +109,7 @@ function ProductPage() {
     }).format(value);
 
   const canAddToCart = Boolean(
-    state.product && selectedMetal && selectedCarat && selectedDiamondType && selectedRingSize && !isAddingToCart,
+    product && selectedMetal && selectedCarat && selectedDiamondType && selectedRingSize && !isAddingToCart,
   );
 
   const handleShare = async () => {
@@ -136,7 +131,7 @@ function ProductPage() {
   };
 
   const handleAddToCart = async () => {
-    if (!state.product || !selectedRingSize) {
+    if (!product || !selectedRingSize) {
       toast.error('Please select required options before adding to cart.');
       return;
     }
@@ -146,9 +141,9 @@ function ProductPage() {
     await new Promise((resolve) => window.setTimeout(resolve, 320));
 
     addToCart({
-      productId: state.product.id,
-      name: state.product.name,
-      image: state.product.image,
+      productId: product.id,
+      name: product.name,
+      image: product.image,
       unitPrice: price,
       quantity: 1,
       selection: {
@@ -163,7 +158,7 @@ function ProductPage() {
     toast.success('Added to Cart');
   };
 
-  if (!state.loading && !state.product) {
+  if (!isLoading && !product) {
     return (
       <main className="min-h-screen bg-charcoal text-white page-fade-in section-padding py-20">
         <div className="max-w-3xl mx-auto border border-white/10 bg-charcoal-light p-10 text-center">
@@ -183,7 +178,7 @@ function ProductPage() {
       <section className="section-padding pt-10 md:pt-10 pb-2 md:pb-3 border-b border-white/5 bg-charcoal-light/45">
         <div className="max-w-7xl mx-auto flex items-center justify-between gap-3">
           <Link
-            to={state.product ? `/category/${toCategorySlug(state.product.category)}` : '/'}
+            to={product ? `/category/${toCategorySlug(product.category)}` : '/'}
             className="inline-flex items-center gap-2 text-sm text-gold hover:text-gold-light transition-colors"
           >
             <ArrowLeft className="w-4 h-4" />
@@ -213,7 +208,7 @@ function ProductPage() {
       <section className="section-padding pt-3 md:pt-4 pb-10">
         <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-[1.3fr_0.9fr] gap-7 lg:gap-10">
           <div>
-            {state.loading && (
+            {isLoading && (
               <div className="space-y-4">
                 <div className="aspect-[4/5] max-h-[74vh] bg-white/5 skeleton-shimmer" />
                 <div className="grid grid-cols-4 gap-3">
@@ -224,7 +219,7 @@ function ProductPage() {
               </div>
             )}
 
-            {!state.loading && state.product && (
+            {!isLoading && product && (
               <>
                 {isMobile ? (
                   <div className="space-y-3">
@@ -238,7 +233,7 @@ function ProductPage() {
                         }
                       }}
                     >
-                      {state.product.gallery.map((image, index) => (
+                      {product.gallery.map((image, index) => (
                         <div key={`${image}-${index}`} className="min-w-full snap-center">
                           <div className="aspect-[4/5] max-h-[62vh] bg-[#111] border border-white/10 overflow-hidden flex items-center justify-center">
                             <img
@@ -254,7 +249,7 @@ function ProductPage() {
                     </div>
 
                     <div className="flex justify-center gap-2">
-                      {state.product.gallery.map((_, index) => (
+                      {product.gallery.map((_, index) => (
                         <button
                           key={index}
                           type="button"
@@ -279,7 +274,7 @@ function ProductPage() {
                     </div>
 
                     <div className="grid grid-cols-4 gap-3">
-                      {state.product.gallery.map((image, index) => (
+                      {product.gallery.map((image, index) => (
                         <button
                           key={`${image}-${index}`}
                           type="button"
@@ -305,7 +300,7 @@ function ProductPage() {
           </div>
 
           <div className="lg:sticky lg:top-24 h-fit border border-white/10 bg-charcoal-light p-5 md:p-6">
-            {state.loading && (
+            {isLoading && (
               <div className="space-y-4">
                 <div className="h-9 w-4/5 bg-white/5 skeleton-shimmer rounded" />
                 <div className="h-5 w-1/3 bg-white/5 skeleton-shimmer rounded" />
@@ -314,10 +309,10 @@ function ProductPage() {
               </div>
             )}
 
-            {!state.loading && state.product && (
+            {!isLoading && product && (
               <div className="space-y-6">
                 <div className="flex items-start justify-between gap-4">
-                  <h1 className="font-serif text-2xl md:text-3xl leading-tight max-w-[92%]">{state.product.name}</h1>
+                  <h1 className="font-serif text-2xl md:text-3xl leading-tight max-w-[92%]">{product.name}</h1>
                   <button
                     type="button"
                     onClick={() => setWishlisted((prev) => !prev)}
@@ -334,12 +329,12 @@ function ProductPage() {
                       <Star key={index} className="w-4 h-4 fill-current" />
                     ))}
                   </div>
-                  <span className="text-sm text-gray-300">({state.product.reviewsCount})</span>
+                  <span className="text-sm text-gray-300">({product.reviewsCount})</span>
                 </div>
 
                 <p className="text-3xl md:text-4xl font-semibold text-gold">{formatPrice(price)}</p>
                 <p className="text-sm text-gray-300 inline-flex items-center gap-1">
-                  Starting at {state.product.emiMonths} payments of
+                  Starting at {product.emiMonths} payments of
                   <span className="text-white font-semibold">{formatPrice(monthlyEmi)}</span>
                   <Info className="w-3.5 h-3.5" />
                 </p>
@@ -350,7 +345,7 @@ function ProductPage() {
                       Metal Type: <span className="text-gold font-semibold">{selectedMetal}</span>
                     </p>
                     <div className="flex flex-wrap gap-2">
-                      {state.product.metalOptions.map((option) => (
+                      {product.metalOptions.map((option) => (
                         <button
                           key={option}
                           type="button"
@@ -368,7 +363,7 @@ function ProductPage() {
                       Total Carat Weight: <span className="text-gold font-semibold">{selectedCarat} ct. tw.</span>
                     </p>
                     <div className="grid grid-cols-5 gap-2">
-                      {state.product.caratOptions.map((carat) => {
+                      {product.caratOptions.map((carat) => {
                         const disabled = selectedMetal === 'Platinum' && carat === 6;
                         return (
                           <button
@@ -390,7 +385,7 @@ function ProductPage() {
                       Diamond Type: <span className="text-gold font-semibold">{selectedDiamondType}</span>
                     </p>
                     <div className="grid grid-cols-2 gap-2">
-                      {state.product.diamondOptions.map((type) => (
+                      {product.diamondOptions.map((type) => (
                         <button
                           key={type}
                           type="button"
@@ -414,8 +409,8 @@ function ProductPage() {
                         <option value="" className="bg-charcoal text-white">
                           Select
                         </option>
-                        {state.product.ringSizes.map((size) => {
-                          const disabled = state.product?.unavailableRingSizes.includes(size);
+                        {product.ringSizes.map((size) => {
+                          const disabled = product.unavailableRingSizes.includes(size);
                           return (
                             <option key={size} value={size} disabled={disabled} className="bg-charcoal text-white">
                               {disabled ? `${size} (Unavailable)` : size}
@@ -430,10 +425,10 @@ function ProductPage() {
                   <div className="space-y-1 text-sm text-gray-300">
                     <p className="inline-flex items-center gap-2">
                       <Truck className="w-4 h-4 text-gold" />
-                      Ships by: <span className="text-white font-semibold">{state.product.shipsBy}</span>
+                      Ships by: <span className="text-white font-semibold">{product.shipsBy}</span>
                     </p>
-                    <p className={state.product.inStock ? 'text-emerald-400' : 'text-amber-400'}>
-                      {state.product.inStock ? 'In Stock' : 'Made to Order'}
+                    <p className={product.inStock ? 'text-emerald-400' : 'text-amber-400'}>
+                      {product.inStock ? 'In Stock' : 'Made to Order'}
                     </p>
                   </div>
 
@@ -455,7 +450,7 @@ function ProductPage() {
                     </Button>
                   </div>
 
-                  {state.product.isNew && <Badge className="bg-gold text-charcoal">New Arrival</Badge>}
+                  {product.isNew && <Badge className="bg-gold text-charcoal">New Arrival</Badge>}
                 </div>
               </div>
             )}
@@ -463,11 +458,11 @@ function ProductPage() {
         </div>
       </section>
 
-      {!state.loading && state.product && (
+      {!isLoading && product && (
         <div className="fixed bottom-0 left-0 right-0 z-40 md:hidden border-t border-white/10 bg-charcoal/95 backdrop-blur-md p-3">
           <div className="section-padding !px-0 flex items-center gap-3">
             <div className="flex-1 min-w-0">
-              <p className="text-xs text-gray-400 truncate">{state.product.name}</p>
+              <p className="text-xs text-gray-400 truncate">{product.name}</p>
               <p className="text-gold font-semibold">{formatPrice(price)}</p>
             </div>
             <Button

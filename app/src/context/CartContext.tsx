@@ -46,23 +46,23 @@ const createItemKey = (payload: AddToCartPayload) => {
 };
 
 export function CartProvider({ children }: { children: ReactNode }) {
-  const [cartItems, setCartItems] = useState<CartItem[]>([]);
+  const [cartItems, setCartItems] = useState<CartItem[]>(() => {
+    if (typeof window === 'undefined') {
+      return [];
+    }
 
-  useEffect(() => {
     try {
       const raw = window.localStorage.getItem(STORAGE_KEY);
       if (!raw) {
-        return;
+        return [];
       }
 
       const parsed = JSON.parse(raw) as CartItem[];
-      if (Array.isArray(parsed)) {
-        setCartItems(parsed);
-      }
+      return Array.isArray(parsed) ? parsed : [];
     } catch {
-      setCartItems([]);
+      return [];
     }
-  }, []);
+  });
 
   useEffect(() => {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(cartItems));

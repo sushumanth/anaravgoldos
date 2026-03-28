@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { ArrowLeft, Heart, Trash2 } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { collections } from '../data/collections';
 import { clearWishlist, getWishlistIds, removeWishlistItem } from '../lib/shop-storage';
 
@@ -52,13 +53,13 @@ function WishlistPage() {
   return (
     <div className="min-h-screen bg-charcoal text-white">
       <section className="section-padding py-4 border-b border-white/10">
-        <a
-          href="/"
+        <Link
+          to="/"
           className="inline-flex items-center gap-2 text-sm text-gold hover:text-gold-light transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
           Continue Shopping
-        </a>
+        </Link>
       </section>
 
       <section className="section-padding py-7">
@@ -67,16 +68,16 @@ function WishlistPage() {
         {wishlistProducts.length === 0 ? (
           <div className="border border-white/10 bg-charcoal-light p-6">
             <p className="text-gray-300 mb-4">Your wishlist is empty.</p>
-            <a href="/" className="text-gold hover:text-gold-light transition-colors">
+            <Link to="/" className="text-gold hover:text-gold-light transition-colors">
               Explore products
-            </a>
+            </Link>
           </div>
         ) : (
           <>
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
               {wishlistProducts.map((product) => (
                 <article key={product.id} className="border border-white/15 bg-charcoal-light p-3.5">
-                  <a href={product.href} className="block group">
+                  <Link to={product.href} className="block group">
                     <div className="aspect-square bg-black/20 overflow-hidden">
                       <img
                         src={product.image}
@@ -84,7 +85,7 @@ function WishlistPage() {
                         className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                       />
                     </div>
-                  </a>
+                  </Link>
 
                   <div className="mt-3">
                     <p className="font-serif text-lg text-white mb-1 leading-snug">{product.name}</p>
@@ -92,12 +93,12 @@ function WishlistPage() {
                   </div>
 
                   <div className="mt-3 flex items-center gap-2.5">
-                    <a
-                      href={product.href}
+                    <Link
+                      to={product.href}
                       className="flex-1 h-9 border border-gold text-gold text-sm inline-flex items-center justify-center hover:bg-gold hover:text-charcoal transition-colors"
                     >
                       View Product
-                    </a>
+                    </Link>
                     <button
                       type="button"
                       onClick={() => removeItem(product.id)}

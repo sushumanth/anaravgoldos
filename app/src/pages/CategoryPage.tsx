@@ -35,7 +35,7 @@ function CategoryPage() {
   const { categoryName = '' } = useParams();
   const navigate = useNavigate();
   const { totalItems } = useCart();
-  const [isLoading, setIsLoading] = useState(true);
+  const [loadedCategoryName, setLoadedCategoryName] = useState('');
   const [products, setProducts] = useState<Product[]>([]);
   const [wishlist, setWishlist] = useState<number[]>([]);
 
@@ -45,16 +45,15 @@ function CategoryPage() {
   const [maxPriceFilter, setMaxPriceFilter] = useState(0);
 
   const activeCategory = useMemo(() => getCategoryBySlug(categoryName), [categoryName]);
+  const isLoading = loadedCategoryName !== categoryName;
 
   useEffect(() => {
-    setIsLoading(true);
-
     const timer = window.setTimeout(() => {
       const nextProducts = getProductsByCategorySlug(categoryName);
       setProducts(nextProducts);
       const maxPrice = nextProducts.length > 0 ? Math.max(...nextProducts.map((product) => product.price)) : 0;
       setMaxPriceFilter(maxPrice);
-      setIsLoading(false);
+      setLoadedCategoryName(categoryName);
     }, 480);
 
     return () => window.clearTimeout(timer);
@@ -141,7 +140,7 @@ function CategoryPage() {
               <h1 className="font-serif text-[2.3rem] md:text-[2.65rem] leading-tight text-white mt-1 md:mt-1.5">{activeCategory.name}</h1>
             </div>
             <div className="flex items-center gap-4 md:pb-0.5">
-              <div className="text-xs md:text-sm text-gray-400">{filteredProducts.length} Products Available</div>
+                <div className="text-xs md:text-sm text-gray-400">{isLoading ? 0 : filteredProducts.length} Products Available</div>
               <Link to="/cart" className="relative p-2 text-gray-300 hover:text-gold transition-colors" aria-label="Open cart">
                 <ShoppingBag className="w-5 h-5" />
                 {totalItems > 0 && (
