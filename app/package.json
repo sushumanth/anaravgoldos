@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "merge-api": "python -m uvicorn --app-dir ./python merge_api:app --host 127.0.0.1 --port 8000"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

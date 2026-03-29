@@ -132,17 +132,26 @@ function App() {
       });
 
       // Products section
-      gsap.from('.product-card', {
-        scrollTrigger: {
-          trigger: productsRef.current,
-          start: 'top 75%',
+      gsap.fromTo(
+        '.product-card',
+        {
+          opacity: 0,
+          y: 40,
         },
-        opacity: 0,
-        y: 40,
-        duration: 0.8,
-        stagger: 0.1,
-        ease: 'power3.out'
-      });
+        {
+          scrollTrigger: {
+            trigger: productsRef.current,
+            start: 'top 75%',
+            invalidateOnRefresh: true,
+          },
+          opacity: 1,
+          y: 0,
+          duration: 0.8,
+          stagger: 0.1,
+          ease: 'power3.out',
+          immediateRender: false,
+        },
+      );
 
       // Trust section
       gsap.from('.trust-item', {
@@ -224,12 +233,12 @@ function App() {
       return b.price - a.price;
     });
 
-    const selected = ranked.filter((item) => item.isBestSeller).slice(0, 6);
-    if (selected.length >= 6) {
+    const selected = ranked.filter((item) => item.isBestSeller).slice(0, 3);
+    if (selected.length >= 3) {
       return selected;
     }
 
-    return ranked.slice(0, 6);
+    return ranked.slice(0, 3);
   }, []);
 
   return (

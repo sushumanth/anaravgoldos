@@ -1,6 +1,7 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
+import type { ReactElement } from 'react'
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { Toaster } from 'sonner'
 import './index.css'
 import App from './App.tsx'
@@ -11,6 +12,19 @@ import CollectionPage from './pages/CollectionPage.tsx'
 import ProductDetailPage from './pages/ProductDetailPage.tsx'
 import WishlistPage from './pages/WishlistPage.tsx'
 import { CartProvider } from './context/CartContext.tsx'
+import AdminLoginPage from './pages/AdminLoginPage.tsx'
+import AdminDashboardPage from './pages/AdminDashboardPage.tsx'
+import { isAdminAuthenticated } from './lib/admin-auth.ts'
+
+function ProtectedAdminRoute({ children }: { children: ReactElement }) {
+  const location = useLocation()
+
+  if (!isAdminAuthenticated()) {
+    return <Navigate to="/admin/login" replace state={{ from: location }} />
+  }
+
+  return children
+}
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -25,6 +39,15 @@ createRoot(document.getElementById('root')!).render(
           <Route path="/collection/:slug" element={<CollectionPage />} />
           <Route path="/wishlist" element={<WishlistPage />} />
           <Route path="/cart" element={<CartPage />} />
+          <Route path="/admin/login" element={<AdminLoginPage />} />
+          <Route
+            path="/admin"
+            element={
+              <ProtectedAdminRoute>
+                <AdminDashboardPage />
+              </ProtectedAdminRoute>
+            }
+          />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>
