@@ -7,17 +7,13 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useCart } from '@/context/CartContext';
 import {
-  categories,
-  getCategoryBySlug,
-  getProductsByCategorySlug,
-  toCategorySlug,
-  type MetalType,
-  type Product,
-} from '@/data/catalog';
+  fetchAllCategories,
+  fetchProductsByCategorySlug,
+  type ShopCategory,
+  type ShopProductCard,
+} from '@/lib/shop-api';
 
 type SortOption = 'best-sellers' | 'price-low-high' | 'price-high-low' | 'new-arrivals';
-
-const metalTypes: MetalType[] = ['Gold', 'Diamond', 'Platinum'];
 
 function ProductSkeletonCard() {
   return (
@@ -36,29 +32,71 @@ function CategoryPage() {
   const { categoryName = '' } = useParams();
   const navigate = useNavigate();
   const { totalItems } = useCart();
-  const [loadedCategoryName, setLoadedCategoryName] = useState('');
-  const [products, setProducts] = useState<Product[]>([]);
+  const [activeCategory, setActiveCategory] = useState<ShopCategory | null>(null);
+  const [allCategories, setAllCategories] = useState<ShopCategory[]>([]);
+  const [products, setProducts] = useState<ShopProductCard[]>([]);
   const [wishlist, setWishlist] = useState<number[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   const [engravableOnly, setEngravableOnly] = useState(false);
-  const [selectedMetals, setSelectedMetals] = useState<MetalType[]>([]);
+  const [selectedMetals, setSelectedMetals] = useState<string[]>([]);
   const [sortOption, setSortOption] = useState<SortOption>('best-sellers');
   const [maxPriceFilter, setMaxPriceFilter] = useState(0);
 
-  const activeCategory = useMemo(() => getCategoryBySlug(categoryName), [categoryName]);
-  const isLoading = loadedCategoryName !== categoryName;
-
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      const nextProducts = getProductsByCategorySlug(categoryName);
-      setProducts(nextProducts);
-      const maxPrice = nextProducts.length > 0 ? Math.max(...nextProducts.map((product) => product.price)) : 0;
-      setMaxPriceFilter(maxPrice);
-      setLoadedCategoryName(categoryName);
-    }, 480);
+    let isMounted = true;
 
-    return () => window.clearTimeout(timer);
+    const loadCategoryData = async () => {
+      setIsLoading(true);
+
+      try {
+        const [categoryPayload, categoriesPayload] = await Promise.all([
+          fetchProductsByCategorySlug(categoryName),
+          fetchAllCategories(),
+        ]);
+
+        if (!isMounted) {
+          return;
+        }
+
+        setActiveCategory(categoryPayload.category);
+        setProducts(categoryPayload.products);
+        setAllCategories(categoriesPayload);
+
+        const maxPrice =
+          categoryPayload.products.length > 0
+            ? Math.max(...categoryPayload.products.map((product) => product.price))
+            : 0;
+        setMaxPriceFilter(maxPrice);
+        setSelectedMetals([]);
+        setEngravableOnly(false);
+      } catch {
+        if (!isMounted) {
+          return;
+        }
+
+        setActiveCategory(null);
+        setProducts([]);
+        setAllCategories([]);
+        setMaxPriceFilter(0);
+        toast.error('Unable to load category data from Supabase.');
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    void loadCategoryData();
+
+    return () => {
+      isMounted = false;
+    };
   }, [categoryName]);
+
+  const metalTypes = useMemo(() => {
+    return Array.from(new Set(products.map((product) => product.metal)));
+  }, [products]);
 
   const filteredProducts = useMemo(() => {
     let nextProducts = products.filter((product) => product.price <= maxPriceFilter);
@@ -112,7 +150,7 @@ function CategoryPage() {
     });
   };
 
-  const toggleMetal = (metal: MetalType) => {
+  const toggleMetal = (metal: string) => {
     setSelectedMetals((previous) =>
       previous.includes(metal) ? previous.filter((currentMetal) => currentMetal !== metal) : [...previous, metal],
     );
@@ -326,10 +364,10 @@ function CategoryPage() {
             <div className="mt-12 border-t border-white/10 pt-8">
               <p className="text-sm text-gray-400 mb-4">Browse Other Categories</p>
               <div className="flex flex-wrap gap-3">
-                {categories.map((category) => (
+                {allCategories.map((category) => (
                   <Link
-                    key={category.name}
-                    to={`/category/${toCategorySlug(category.name)}`}
+                    key={category.id}
+                    to={`/category/${category.slug}`}
                     className="px-4 py-2 border border-white/15 hover:border-gold text-sm transition-colors"
                   >
                     {category.name}

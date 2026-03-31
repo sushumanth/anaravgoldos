@@ -7,23 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useCart } from '@/context/CartContext';
 import { useIsMobile } from '@/hooks/use-mobile';
-import {
-  getProductDetailById,
-  toCategorySlug,
-  type DiamondType,
-  type MetalType,
-} from '@/data/catalog';
-
-const metalMultiplier: Record<MetalType, number> = {
-  Gold: 1,
-  Diamond: 1.18,
-  Platinum: 1.26,
-};
-
-const diamondMultiplier: Record<DiamondType, number> = {
-  Natural: 1.15,
-  'Lab-Grown': 1,
-};
+import { fetchProductDetailById, type ShopProductDetail } from '@/lib/shop-api';
 
 const caratMultiplier: Record<number, number> = {
   2: 0.88,
@@ -39,34 +23,54 @@ function ProductPage() {
   const { addToCart, totalItems } = useCart();
   const resolvedProductId = Number(productId);
 
-  const [product, setProduct] = useState<ReturnType<typeof getProductDetailById>>(null);
+  const [product, setProduct] = useState<ShopProductDetail | null>(null);
   const [loadedProductId, setLoadedProductId] = useState<number | null>(null);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [wishlisted, setWishlisted] = useState(false);
 
-  const [selectedMetal, setSelectedMetal] = useState<MetalType>('Gold');
+  const [selectedMetal, setSelectedMetal] = useState('Gold');
   const [selectedCarat, setSelectedCarat] = useState(3);
-  const [selectedDiamondType, setSelectedDiamondType] = useState<DiamondType>('Lab-Grown');
+  const [selectedDiamondType, setSelectedDiamondType] = useState('Lab-Grown');
   const [selectedRingSize, setSelectedRingSize] = useState('');
   const [isAddingToCart, setIsAddingToCart] = useState(false);
   const isLoading = loadedProductId !== resolvedProductId;
 
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      const nextProduct = getProductDetailById(resolvedProductId);
-      setProduct(nextProduct);
-      setLoadedProductId(resolvedProductId);
+    let isMounted = true;
 
-      if (nextProduct) {
-        setSelectedMetal(nextProduct.metalOptions[0]);
-        setSelectedCarat(nextProduct.caratOptions.includes(3) ? 3 : nextProduct.caratOptions[0]);
-        setSelectedDiamondType('Lab-Grown');
-        setSelectedRingSize('');
-        setActiveImageIndex(0);
+    const loadProduct = async () => {
+      try {
+        const nextProduct = await fetchProductDetailById(resolvedProductId);
+        if (!isMounted) {
+          return;
+        }
+
+        setProduct(nextProduct);
+        setLoadedProductId(resolvedProductId);
+
+        if (nextProduct) {
+          setSelectedMetal(nextProduct.metalOptions[0]);
+          setSelectedCarat(nextProduct.caratOptions.includes(3) ? 3 : nextProduct.caratOptions[0]);
+          setSelectedDiamondType(nextProduct.diamondOptions.includes('Lab-Grown') ? 'Lab-Grown' : nextProduct.diamondOptions[0]);
+          setSelectedRingSize('');
+          setActiveImageIndex(0);
+        }
+      } catch {
+        if (!isMounted) {
+          return;
+        }
+
+        setProduct(null);
+        setLoadedProductId(resolvedProductId);
+        toast.error('Unable to load product details from Supabase.');
       }
-    }, 260);
+    };
 
-    return () => window.clearTimeout(timer);
+    void loadProduct();
+
+    return () => {
+      isMounted = false;
+    };
   }, [resolvedProductId]);
 
   const activeImage = useMemo(() => {
@@ -84,11 +88,20 @@ function ProductPage() {
       return 0;
     }
 
-    const calculated =
-      product.price *
-      metalMultiplier[selectedMetal] *
-      (caratMultiplier[selectedCarat] ?? 1) *
-      diamondMultiplier[selectedDiamondType];
+    const selectedMetalLower = selectedMetal.toLowerCase();
+    const selectedDiamondLower = selectedDiamondType.toLowerCase();
+
+    const metalMultiplier = selectedMetalLower.includes('diamond')
+      ? 1.18
+      : selectedMetalLower.includes('platinum')
+        ? 1.26
+        : selectedMetalLower.includes('silver')
+          ? 0.92
+          : 1;
+
+    const diamondMultiplier = selectedDiamondLower.includes('natural') ? 1.15 : 1;
+
+    const calculated = product.price * metalMultiplier * (caratMultiplier[selectedCarat] ?? 1) * diamondMultiplier;
 
     return Math.round(calculated / 100) * 100;
   }, [selectedCarat, selectedDiamondType, selectedMetal, product]);
@@ -170,7 +183,7 @@ function ProductPage() {
       <section className="section-padding pt-10 md:pt-10 pb-2 md:pb-3 border-b border-white/5 bg-charcoal-light/45">
         <div className="max-w-7xl mx-auto flex items-center justify-between gap-3">
           <Link
-            to={product ? `/category/${toCategorySlug(product.category)}` : '/'}
+            to={product ? `/category/${product.categorySlug}` : '/'}
             className="inline-flex items-center gap-2 text-sm text-gold hover:text-gold-light transition-colors"
           >
             <ArrowLeft className="w-4 h-4" />

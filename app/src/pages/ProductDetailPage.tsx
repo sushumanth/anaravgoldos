@@ -1,90 +1,180 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, Heart, Share2, Star } from 'lucide-react';
-import { useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
-import { collections } from '../data/collections';
+
 import { getWishlistIds, toggleWishlistItem } from '../lib/shop-storage';
 import { useCart } from '../context/CartContext';
+import {
+  fetchCollectionBySlug,
+  fetchProductDetailById,
+  fetchProductsByCollectionSlug,
+  type ShopCollection,
+  type ShopCollectionProduct,
+  type ShopProductDetail,
+} from '@/lib/shop-api';
 
-function detectMetal(name: string) {
-  const lower = name.toLowerCase();
-  if (lower.includes('platinum')) return 'Platinum';
-  if (lower.includes('yellow gold') || lower.includes('22k gold')) return 'Yellow Gold';
-  if (lower.includes('rose gold')) return 'Rose Gold';
-  return 'White Gold';
+function getMetalMultiplier(metal: string) {
+  const lower = metal.toLowerCase();
+
+  if (lower.includes('platinum')) return 1.12;
+  if (lower.includes('diamond')) return 1.08;
+  if (lower.includes('silver')) return 0.92;
+  if (lower.includes('rose')) return 1.04;
+  if (lower.includes('yellow')) return 1.03;
+  return 1;
+}
+
+function getCaratMultiplier(carat: number) {
+  if (carat <= 2) return 0.72;
+  if (carat <= 3) return 0.82;
+  if (carat <= 4) return 0.92;
+  if (carat <= 5) return 1;
+  if (carat <= 6) return 1.12;
+  if (carat <= 7) return 1.24;
+  if (carat <= 8) return 1.36;
+  if (carat <= 9.5) return 1.52;
+  return 1.7;
 }
 
 function formatCurrency(value: number) {
-  return `$${value.toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
+  return new Intl.NumberFormat('en-IN', {
+    style: 'currency',
+    currency: 'INR',
+    maximumFractionDigits: 0,
+  }).format(value);
 }
-
-const metalOptions = [
-  { id: '14k-white', label: '14k', metal: 'White Gold', multiplier: 1 },
-  { id: '14k-yellow', label: '14k', metal: 'Yellow Gold', multiplier: 1.03 },
-  { id: '14k-rose', label: '14k', metal: 'Rose Gold', multiplier: 1.04 },
-  { id: 'platinum', label: 'Pt', metal: 'Platinum', multiplier: 1.12 },
-] as const;
-
-const caratOptions = [
-  { value: '2', multiplier: 0.72 },
-  { value: '3', multiplier: 0.82 },
-  { value: '4', multiplier: 0.92 },
-  { value: '5', multiplier: 1 },
-  { value: '6', multiplier: 1.12 },
-  { value: '7', multiplier: 1.24 },
-  { value: '8', multiplier: 1.36 },
-  { value: '9.5', multiplier: 1.52 },
-  { value: '11', multiplier: 1.7 },
-] as const;
 
 function ProductDetailPage() {
   const params = useParams();
   const slug = params.slug ?? '';
   const productId = Number(params.productId);
   const { addToCart } = useCart();
-  const collection = collections.find((item) => item.slug === slug);
-  const product = collection?.products.find((item) => item.id === productId);
 
-  const inferredMetal = detectMetal(product?.name ?? '');
-  const defaultMetal =
-    metalOptions.find((option) => option.metal === inferredMetal)?.id ?? '14k-white';
-  const defaultDiamondType = product?.badges.includes('Lab Grown')
-    ? 'Lab-Grown Diamond'
-    : 'Natural Diamond';
-  const [selectedMetalOption, setSelectedMetalOption] = useState<string>(defaultMetal);
+  const [collection, setCollection] = useState<ShopCollection | null>(null);
+  const [product, setProduct] = useState<ShopProductDetail | null>(null);
+  const [similarProducts, setSimilarProducts] = useState<ShopCollectionProduct[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [selectedMetal, setSelectedMetal] = useState('Gold');
   const [selectedCaratWeight, setSelectedCaratWeight] = useState('5');
   const [selectedRingSize, setSelectedRingSize] = useState('');
-  const [selectedDiamondType, setSelectedDiamondType] = useState(defaultDiamondType);
+  const [selectedDiamondType, setSelectedDiamondType] = useState('Lab-Grown');
   const [wishlistIds, setWishlistIds] = useState<number[]>(() => getWishlistIds());
   const [cartMessage, setCartMessage] = useState('');
 
-  if (!collection || !product) {
-    window.location.replace('/');
-    return null;
-  }
+  useEffect(() => {
+    let isMounted = true;
 
-  const basePrice = Number(product.price.replace(/[^0-9.]/g, ''));
-  const metalMultiplier =
-    metalOptions.find((option) => option.id === selectedMetalOption)?.multiplier ?? 1;
-  const selectedMetal =
-    metalOptions.find((option) => option.id === selectedMetalOption)?.metal ?? inferredMetal;
-  const caratMultiplier =
-    caratOptions.find((option) => option.value === selectedCaratWeight)?.multiplier ?? 1;
-  const diamondMultiplier = selectedDiamondType === 'Natural Diamond' ? 1.18 : 1;
-  const calculatedPrice = Math.round((basePrice * metalMultiplier * caratMultiplier * diamondMultiplier) / 10) * 10;
+    const loadData = async () => {
+      setIsLoading(true);
+
+      try {
+        const [collectionPayload, productPayload, relatedPayload] = await Promise.all([
+          fetchCollectionBySlug(slug),
+          fetchProductDetailById(productId),
+          fetchProductsByCollectionSlug(slug),
+        ]);
+
+        if (!isMounted) {
+          return;
+        }
+
+        setCollection(collectionPayload);
+        setProduct(productPayload);
+        setSimilarProducts(relatedPayload.products.filter((item) => item.id !== productId).slice(0, 4));
+
+        if (productPayload) {
+          setSelectedMetal(productPayload.metalOptions[0] ?? 'Gold');
+          setSelectedCaratWeight(String(productPayload.caratOptions[0] ?? 5));
+          setSelectedDiamondType(productPayload.diamondOptions[0] ?? 'Lab-Grown');
+        }
+      } catch {
+        if (!isMounted) {
+          return;
+        }
+
+        setCollection(null);
+        setProduct(null);
+        setSimilarProducts([]);
+        toast.error('Unable to load product details from Supabase.');
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    void loadData();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [slug, productId]);
+
+  const calculatedPrice = useMemo(() => {
+    if (!product) {
+      return 0;
+    }
+
+    const basePrice = product.price;
+    const metalMultiplier = getMetalMultiplier(selectedMetal);
+    const caratMultiplier = getCaratMultiplier(Number(selectedCaratWeight));
+    const diamondMultiplier = selectedDiamondType.toLowerCase().includes('natural') ? 1.18 : 1;
+
+    return Math.round((basePrice * metalMultiplier * caratMultiplier * diamondMultiplier) / 10) * 10;
+  }, [product, selectedMetal, selectedCaratWeight, selectedDiamondType]);
+
   const calculatedWidth = (3 + Number(selectedCaratWeight) * 0.2).toFixed(2);
 
+  const gallery = useMemo(() => {
+    if (!product) {
+      return [];
+    }
+
+    return Array.from(new Set([...product.gallery, collection?.image ?? '/featured-detail.jpg'])).slice(0, 4);
+  }, [collection?.image, product]);
+
+  const ringSizes = product?.ringSizes ?? [];
+  const isProductAvailable = Boolean(product?.inStock && ringSizes.length > 0);
+
+  if (!isLoading && (!collection || !product)) {
+    return (
+      <div className="min-h-screen bg-charcoal text-white section-padding py-20">
+        <div className="max-w-3xl mx-auto border border-white/10 bg-charcoal-light p-10 text-center">
+          <h1 className="font-serif text-3xl text-white mb-3">Product Not Found</h1>
+          <p className="text-gray-300 mb-5">This product is unavailable in Supabase.</p>
+          <Link to="/" className="inline-flex items-center gap-2 text-gold hover:text-gold-light transition-colors">
+            <ArrowLeft className="w-4 h-4" />
+            Back to Home
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  if (isLoading || !collection || !product) {
+    return (
+      <div className="min-h-screen bg-charcoal text-white section-padding py-20">
+        <div className="max-w-5xl mx-auto grid sm:grid-cols-2 gap-6">
+          <div className="aspect-square bg-white/5 skeleton-shimmer" />
+          <div className="space-y-4">
+            <div className="h-8 bg-white/5 rounded skeleton-shimmer" />
+            <div className="h-6 w-2/3 bg-white/5 rounded skeleton-shimmer" />
+            <div className="h-40 bg-white/5 rounded skeleton-shimmer" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   const diamondType = selectedDiamondType;
-  const gallery = [product.image, product.hoverImage, collection.image, '/featured-detail.jpg'];
-  const ringSizes = ['2', '3', '4', '5', '6', '7', '8', '9.5', '11'];
-  const isProductAvailable = ringSizes.length > 0;
-  const similarProducts = collection.products.filter((item) => item.id !== product.id).slice(0, 4);
 
   const handleAddToCart = () => {
     if (!selectedRingSize) {
       setCartMessage('Please select a ring size before adding to cart.');
       return;
     }
+
     addToCart({
       productId: product.id,
       name: product.name,
@@ -98,8 +188,9 @@ function ProductDetailPage() {
         diamondType: selectedDiamondType,
       },
     });
+
     setCartMessage(
-      `Added to cart: ${selectedMetal}, ${selectedCaratWeight} ct. tw., ${diamondType}, size ${selectedRingSize}.`
+      `Added to cart: ${selectedMetal}, ${selectedCaratWeight} ct. tw., ${diamondType}, size ${selectedRingSize}.`,
     );
     toast.success(`${product.name} added to cart.`);
   };
@@ -118,10 +209,13 @@ function ProductDetailPage() {
     <div className="min-h-screen bg-charcoal text-white">
       <section className="section-padding py-5 border-b border-white/10">
         <div className="flex items-center justify-between text-sm">
-          <a href={`/collections/${collection.slug}`} className="inline-flex items-center gap-2 text-gold hover:text-gold-light transition-colors">
+          <Link
+            to={`/collections/${collection.slug}`}
+            className="inline-flex items-center gap-2 text-gold hover:text-gold-light transition-colors"
+          >
             <ArrowLeft className="w-4 h-4" />
             Back To Gallery
-          </a>
+          </Link>
           <button type="button" className="inline-flex items-center gap-2 text-gray-300 hover:text-gold transition-colors">
             <Share2 className="w-4 h-4" />
             Share
@@ -147,7 +241,7 @@ function ProductDetailPage() {
             <div className="mt-4 border border-white/10 bg-charcoal-light">
               <div className="grid grid-cols-2 text-sm">
                 <div className="p-3 border-b border-white/10 text-gray-300">Stock Number</div>
-                <div className="p-3 border-b border-white/10 text-right text-white">601572W1412L60</div>
+                <div className="p-3 border-b border-white/10 text-right text-white">{product.slug.toUpperCase()}</div>
                 <div className="p-3 border-b border-white/10 text-gray-300">Metal</div>
                 <div className="p-3 border-b border-white/10 text-right text-white">14K {selectedMetal}</div>
                 <div className="p-3 border-b border-white/10 text-gray-300">Width</div>
@@ -183,7 +277,7 @@ function ProductDetailPage() {
                   />
                 ))}
               </div>
-              <span className="text-sm text-gray-300">({product.reviews})</span>
+              <span className="text-sm text-gray-300">({product.reviewsCount})</span>
             </div>
 
             <p className="text-4xl font-semibold text-gold mt-6">{formatCurrency(calculatedPrice)}</p>
@@ -243,18 +337,18 @@ function ProductDetailPage() {
                   Metal Type: <span className="text-gold font-semibold">{selectedMetal}</span>
                 </p>
                 <div className="mt-3 flex flex-wrap gap-2">
-                  {metalOptions.map((variant) => (
+                  {product.metalOptions.map((metalOption) => (
                     <button
-                      key={variant.id}
+                      key={metalOption}
                       type="button"
-                      onClick={() => setSelectedMetalOption(variant.id)}
-                      className={`h-11 w-16 border text-sm ${
-                        selectedMetalOption === variant.id
+                      onClick={() => setSelectedMetal(metalOption)}
+                      className={`h-11 px-4 border text-sm ${
+                        selectedMetal === metalOption
                           ? 'border-gold text-gold bg-gold/10'
                           : 'border-white/20 text-gray-300 hover:border-gold/60 hover:text-gold'
                       }`}
                     >
-                      {variant.label}
+                      {metalOption}
                     </button>
                   ))}
                 </div>
@@ -265,20 +359,23 @@ function ProductDetailPage() {
                   Total Carat Weight: <span className="text-gold font-semibold">{selectedCaratWeight} ct. tw. {formatCurrency(calculatedPrice)}</span>
                 </p>
                 <div className="mt-3 grid grid-cols-5 sm:grid-cols-9 gap-2">
-                  {caratOptions.map((size) => (
-                    <button
-                      key={size.value}
-                      type="button"
-                      onClick={() => setSelectedCaratWeight(size.value)}
-                      className={`h-11 border text-sm ${
-                        size.value === selectedCaratWeight
-                          ? 'border-gold text-gold bg-gold/10'
-                          : 'border-white/20 text-gray-300 hover:border-gold/60 hover:text-gold'
-                      }`}
-                    >
-                      {size.value}
-                    </button>
-                  ))}
+                  {product.caratOptions.map((size) => {
+                    const value = String(size);
+                    return (
+                      <button
+                        key={value}
+                        type="button"
+                        onClick={() => setSelectedCaratWeight(value)}
+                        className={`h-11 border text-sm ${
+                          value === selectedCaratWeight
+                            ? 'border-gold text-gold bg-gold/10'
+                            : 'border-white/20 text-gray-300 hover:border-gold/60 hover:text-gold'
+                        }`}
+                      >
+                        {value}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -287,28 +384,20 @@ function ProductDetailPage() {
                   Diamond Type: <span className="text-gold font-semibold">{diamondType}</span>
                 </p>
                 <div className="mt-3 grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setSelectedDiamondType('Natural Diamond')}
-                    className={`h-12 border text-sm ${
-                      diamondType === 'Natural Diamond'
-                        ? 'border-gold text-gold bg-gold/10'
-                        : 'border-white/20 text-gray-300 hover:border-gold/60 hover:text-gold'
-                    }`}
-                  >
-                    Natural
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedDiamondType('Lab-Grown Diamond')}
-                    className={`h-12 border text-sm ${
-                      diamondType === 'Lab-Grown Diamond'
-                        ? 'border-gold text-gold bg-gold/10'
-                        : 'border-white/20 text-gray-300 hover:border-gold/60 hover:text-gold'
-                    }`}
-                  >
-                    Lab-Grown
-                  </button>
+                  {product.diamondOptions.map((option) => (
+                    <button
+                      key={option}
+                      type="button"
+                      onClick={() => setSelectedDiamondType(option)}
+                      className={`h-12 border text-sm ${
+                        diamondType === option
+                          ? 'border-gold text-gold bg-gold/10'
+                          : 'border-white/20 text-gray-300 hover:border-gold/60 hover:text-gold'
+                      }`}
+                    >
+                      {option}
+                    </button>
+                  ))}
                 </div>
               </div>
             </div>
@@ -325,7 +414,7 @@ function ProductDetailPage() {
               key={item.id}
               className="group bg-white/[0.04] border border-white/10 rounded-sm overflow-hidden hover:border-gold/50 transition-colors"
             >
-              <a href={`/collections/${collection.slug}/product/${item.id}`} className="block">
+              <Link to={`/collections/${collection.slug}/product/${item.id}`} className="block">
                 <div className="relative aspect-[4/4.2] bg-black/30 overflow-hidden">
                   <img
                     src={item.image}
@@ -369,7 +458,7 @@ function ProductDetailPage() {
                     <span className="text-xs text-gray-300">({item.reviews})</span>
                   </div>
                 </div>
-              </a>
+              </Link>
             </article>
           ))}
         </div>
