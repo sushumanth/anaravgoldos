@@ -19,10 +19,12 @@ type ProductRow = {
   id: number;
   name: string;
   slug: string;
+  sku: string;
   base_price: number;
   image_url: string | null;
   hover_image_url: string | null;
   description: string | null;
+  long_description: string | null;
   rating: number | null;
   is_new: boolean | null;
   is_best_seller: boolean | null;
@@ -102,11 +104,13 @@ export type ShopCollectionProduct = {
 export type ShopProductDetail = {
   id: number;
   slug: string;
+  sku: string;
   name: string;
   category: string;
   categorySlug: string;
   collectionSlug: string | null;
   description: string;
+  longDescription: string;
   price: number;
   image: string;
   hoverImage: string;
@@ -139,12 +143,7 @@ function asIntRating(value: number | null): number {
 }
 
 function getDiamondTypeLabel(optionValue: string): string {
-  const lower = optionValue.toLowerCase();
-  if (lower.includes('lab')) {
-    return 'Lab-Grown';
-  }
-
-  return 'Natural';
+  return optionValue.trim();
 }
 
 function normalizeCollection(row: CollectionRow): ShopCollection {
@@ -357,7 +356,7 @@ export async function fetchProductsByCategorySlug(slug: string): Promise<{ categ
 
   const { data, error } = await supabase
     .from('products')
-    .select('id, name, slug, base_price, image_url, hover_image_url, description, rating, is_new, is_best_seller, is_engravable, stock_quantity, created_at, category_id, collection_id')
+    .select('id, name, slug, sku, base_price, image_url, hover_image_url, description, long_description, rating, is_new, is_best_seller, is_engravable, stock_quantity, created_at, category_id, collection_id')
     .eq('category_id', category.id)
     .eq('is_active', true)
     .order('created_at', { ascending: false });
@@ -405,7 +404,7 @@ export async function fetchProductsByCollectionSlug(slug: string): Promise<{ col
 
   const { data, error } = await supabase
     .from('products')
-    .select('id, name, slug, base_price, image_url, hover_image_url, description, rating, is_new, is_best_seller, is_engravable, stock_quantity, created_at, category_id, collection_id')
+    .select('id, name, slug, sku, base_price, image_url, hover_image_url, description, long_description, rating, is_new, is_best_seller, is_engravable, stock_quantity, created_at, category_id, collection_id')
     .eq('collection_id', collection.id)
     .eq('is_active', true)
     .order('created_at', { ascending: false });
@@ -460,7 +459,7 @@ export async function fetchProductsByCollectionSlug(slug: string): Promise<{ col
 export async function fetchProductDetailById(productId: number): Promise<ShopProductDetail | null> {
   const { data, error } = await supabase
     .from('products')
-    .select('id, name, slug, base_price, image_url, hover_image_url, description, rating, is_new, is_best_seller, is_engravable, stock_quantity, created_at, category_id, collection_id')
+    .select('id, name, slug, sku, base_price, image_url, hover_image_url, description, long_description, rating, is_new, is_best_seller, is_engravable, stock_quantity, created_at, category_id, collection_id')
     .eq('id', productId)
     .eq('is_active', true)
     .maybeSingle();
@@ -578,11 +577,13 @@ export async function fetchProductDetailById(productId: number): Promise<ShopPro
   return {
     id: row.id,
     slug: row.slug,
+    sku: row.sku,
     name: row.name,
     category: category.name,
     categorySlug: category.slug,
     collectionSlug,
     description: row.description ?? '',
+    longDescription: row.long_description ?? row.description ?? '',
     price: row.base_price,
     image: row.image_url || fallbackImage,
     hoverImage: row.hover_image_url || row.image_url || fallbackImage,
@@ -592,10 +593,10 @@ export async function fetchProductDetailById(productId: number): Promise<ShopPro
     inStock: (row.stock_quantity ?? 0) > 0,
     isNew: Boolean(row.is_new),
     isBestSeller: Boolean(row.is_best_seller),
-    metalOptions: metalOptions.length > 0 ? metalOptions : ['Gold'],
-    caratOptions: caratOptions.length > 0 ? caratOptions : [2, 3, 4, 5, 6],
-    diamondOptions: diamondOptions.length > 0 ? diamondOptions : ['Natural', 'Lab-Grown'],
-    ringSizes: availableSizes.length > 0 ? availableSizes : ['6'],
+    metalOptions,
+    caratOptions,
+    diamondOptions,
+    ringSizes: availableSizes,
     unavailableRingSizes: unavailableSizes,
   };
 }

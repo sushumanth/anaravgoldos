@@ -14,29 +14,6 @@ import {
   type ShopProductDetail,
 } from '@/lib/shop-api';
 
-function getMetalMultiplier(metal: string) {
-  const lower = metal.toLowerCase();
-
-  if (lower.includes('platinum')) return 1.12;
-  if (lower.includes('diamond')) return 1.08;
-  if (lower.includes('silver')) return 0.92;
-  if (lower.includes('rose')) return 1.04;
-  if (lower.includes('yellow')) return 1.03;
-  return 1;
-}
-
-function getCaratMultiplier(carat: number) {
-  if (carat <= 2) return 0.72;
-  if (carat <= 3) return 0.82;
-  if (carat <= 4) return 0.92;
-  if (carat <= 5) return 1;
-  if (carat <= 6) return 1.12;
-  if (carat <= 7) return 1.24;
-  if (carat <= 8) return 1.36;
-  if (carat <= 9.5) return 1.52;
-  return 1.7;
-}
-
 function formatCurrency(value: number) {
   return new Intl.NumberFormat('en-IN', {
     style: 'currency',
@@ -55,10 +32,10 @@ function ProductDetailPage() {
   const [product, setProduct] = useState<ShopProductDetail | null>(null);
   const [similarProducts, setSimilarProducts] = useState<ShopCollectionProduct[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [selectedMetal, setSelectedMetal] = useState('Gold');
-  const [selectedCaratWeight, setSelectedCaratWeight] = useState('5');
+  const [selectedMetal, setSelectedMetal] = useState('');
+  const [selectedCaratWeight, setSelectedCaratWeight] = useState('');
   const [selectedRingSize, setSelectedRingSize] = useState('');
-  const [selectedDiamondType, setSelectedDiamondType] = useState('Lab-Grown');
+  const [selectedDiamondType, setSelectedDiamondType] = useState('');
   const [wishlistIds, setWishlistIds] = useState<number[]>(() => getWishlistIds());
   const [cartMessage, setCartMessage] = useState('');
 
@@ -84,9 +61,9 @@ function ProductDetailPage() {
         setSimilarProducts(relatedPayload.products.filter((item) => item.id !== productId).slice(0, 4));
 
         if (productPayload) {
-          setSelectedMetal(productPayload.metalOptions[0] ?? 'Gold');
-          setSelectedCaratWeight(String(productPayload.caratOptions[0] ?? 5));
-          setSelectedDiamondType(productPayload.diamondOptions[0] ?? 'Lab-Grown');
+          setSelectedMetal(productPayload.metalOptions[0] ?? '');
+          setSelectedCaratWeight(String(productPayload.caratOptions[0] ?? ''));
+          setSelectedDiamondType(productPayload.diamondOptions[0] ?? '');
         }
       } catch {
         if (!isMounted) {
@@ -116,15 +93,8 @@ function ProductDetailPage() {
       return 0;
     }
 
-    const basePrice = product.price;
-    const metalMultiplier = getMetalMultiplier(selectedMetal);
-    const caratMultiplier = getCaratMultiplier(Number(selectedCaratWeight));
-    const diamondMultiplier = selectedDiamondType.toLowerCase().includes('natural') ? 1.18 : 1;
-
-    return Math.round((basePrice * metalMultiplier * caratMultiplier * diamondMultiplier) / 10) * 10;
+    return product.price;
   }, [product, selectedMetal, selectedCaratWeight, selectedDiamondType]);
-
-  const calculatedWidth = (3 + Number(selectedCaratWeight) * 0.2).toFixed(2);
 
   const gallery = useMemo(() => {
     if (!product) {
@@ -135,7 +105,8 @@ function ProductDetailPage() {
   }, [collection?.image, product]);
 
   const ringSizes = product?.ringSizes ?? [];
-  const isProductAvailable = Boolean(product?.inStock && ringSizes.length > 0);
+  const ringSizeRequired = ringSizes.length > 0;
+  const isProductAvailable = Boolean(product?.inStock);
 
   if (!isLoading && (!collection || !product)) {
     return (
@@ -167,10 +138,10 @@ function ProductDetailPage() {
     );
   }
 
-  const diamondType = selectedDiamondType;
+  const diamondType = selectedDiamondType || 'Not specified';
 
   const handleAddToCart = () => {
-    if (!selectedRingSize) {
+    if (ringSizeRequired && !selectedRingSize) {
       setCartMessage('Please select a ring size before adding to cart.');
       return;
     }
@@ -190,7 +161,7 @@ function ProductDetailPage() {
     });
 
     setCartMessage(
-      `Added to cart: ${selectedMetal}, ${selectedCaratWeight} ct. tw., ${diamondType}, size ${selectedRingSize}.`,
+      `Added to cart: ${selectedMetal || 'N/A'}, ${selectedCaratWeight || 'N/A'} ct. tw., ${diamondType}, size ${selectedRingSize || 'N/A'}.`,
     );
     toast.success(`${product.name} added to cart.`);
   };
@@ -241,17 +212,12 @@ function ProductDetailPage() {
             <div className="mt-4 border border-white/10 bg-charcoal-light">
               <div className="grid grid-cols-2 text-sm">
                 <div className="p-3 border-b border-white/10 text-gray-300">Stock Number</div>
-                <div className="p-3 border-b border-white/10 text-right text-white">{product.slug.toUpperCase()}</div>
-                <div className="p-3 border-b border-white/10 text-gray-300">Metal</div>
-                <div className="p-3 border-b border-white/10 text-right text-white">14K {selectedMetal}</div>
-                <div className="p-3 border-b border-white/10 text-gray-300">Width</div>
-                <div className="p-3 border-b border-white/10 text-right text-white">{calculatedWidth}mm</div>
-                <div className="p-3 text-gray-300">Rhodium Finish</div>
-                <div className="p-3 text-right text-white">Yes</div>
+                <div className="p-3 border-b border-white/10 text-right text-white">{product.sku || product.slug.toUpperCase()}</div>
+                <div className="p-3 border-b border-white/10 text-gray-300">Category</div>
+                <div className="p-3 border-b border-white/10 text-right text-white">{product.category}</div>
+                <div className="p-3 text-gray-300">Availability</div>
+                <div className="p-3 text-right text-white">{product.inStock ? 'In Stock' : 'Out of Stock'}</div>
               </div>
-              <button type="button" className="w-full text-left px-3 py-2 border-t border-white/10 text-sm text-gold hover:text-gold-light transition-colors">
-                + Show More
-              </button>
             </div>
           </div>
 
@@ -314,7 +280,7 @@ function ProductDetailPage() {
               <button
                 type="button"
                 onClick={handleAddToCart}
-                disabled={!selectedRingSize}
+                disabled={ringSizeRequired && !selectedRingSize}
                 className="w-full h-12 bg-gold text-charcoal font-semibold tracking-wide hover:bg-gold-light transition-colors"
               >
                 ADD TO CART
@@ -334,71 +300,83 @@ function ProductDetailPage() {
             <div className="mt-6 pt-6 border-t border-white/10 space-y-6">
               <div>
                 <p className="text-xl text-white">
-                  Metal Type: <span className="text-gold font-semibold">{selectedMetal}</span>
+                  Metal Type: <span className="text-gold font-semibold">{selectedMetal || 'Not specified'}</span>
                 </p>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {product.metalOptions.map((metalOption) => (
-                    <button
-                      key={metalOption}
-                      type="button"
-                      onClick={() => setSelectedMetal(metalOption)}
-                      className={`h-11 px-4 border text-sm ${
-                        selectedMetal === metalOption
-                          ? 'border-gold text-gold bg-gold/10'
-                          : 'border-white/20 text-gray-300 hover:border-gold/60 hover:text-gold'
-                      }`}
-                    >
-                      {metalOption}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <p className="text-xl text-white">
-                  Total Carat Weight: <span className="text-gold font-semibold">{selectedCaratWeight} ct. tw. {formatCurrency(calculatedPrice)}</span>
-                </p>
-                <div className="mt-3 grid grid-cols-5 sm:grid-cols-9 gap-2">
-                  {product.caratOptions.map((size) => {
-                    const value = String(size);
-                    return (
+                {product.metalOptions.length > 0 ? (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {product.metalOptions.map((metalOption) => (
                       <button
-                        key={value}
+                        key={metalOption}
                         type="button"
-                        onClick={() => setSelectedCaratWeight(value)}
-                        className={`h-11 border text-sm ${
-                          value === selectedCaratWeight
+                        onClick={() => setSelectedMetal(metalOption)}
+                        className={`h-11 px-4 border text-sm ${
+                          selectedMetal === metalOption
                             ? 'border-gold text-gold bg-gold/10'
                             : 'border-white/20 text-gray-300 hover:border-gold/60 hover:text-gold'
                         }`}
                       >
-                        {value}
+                        {metalOption}
                       </button>
-                    );
-                  })}
-                </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="mt-3 text-sm text-gray-400">No metal variants configured in database.</p>
+                )}
+              </div>
+
+              <div>
+                <p className="text-xl text-white">
+                  Total Carat Weight: <span className="text-gold font-semibold">{selectedCaratWeight ? `${selectedCaratWeight} ct. tw.` : 'Not specified'} {formatCurrency(calculatedPrice)}</span>
+                </p>
+                {product.caratOptions.length > 0 ? (
+                  <div className="mt-3 grid grid-cols-5 sm:grid-cols-9 gap-2">
+                    {product.caratOptions.map((size) => {
+                      const value = String(size);
+                      return (
+                        <button
+                          key={value}
+                          type="button"
+                          onClick={() => setSelectedCaratWeight(value)}
+                          className={`h-11 border text-sm ${
+                            value === selectedCaratWeight
+                              ? 'border-gold text-gold bg-gold/10'
+                              : 'border-white/20 text-gray-300 hover:border-gold/60 hover:text-gold'
+                          }`}
+                        >
+                          {value}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="mt-3 text-sm text-gray-400">No carat options configured in database.</p>
+                )}
               </div>
 
               <div>
                 <p className="text-xl text-white">
                   Diamond Type: <span className="text-gold font-semibold">{diamondType}</span>
                 </p>
-                <div className="mt-3 grid grid-cols-2 gap-2">
-                  {product.diamondOptions.map((option) => (
-                    <button
-                      key={option}
-                      type="button"
-                      onClick={() => setSelectedDiamondType(option)}
-                      className={`h-12 border text-sm ${
-                        diamondType === option
-                          ? 'border-gold text-gold bg-gold/10'
-                          : 'border-white/20 text-gray-300 hover:border-gold/60 hover:text-gold'
-                      }`}
-                    >
-                      {option}
-                    </button>
-                  ))}
-                </div>
+                {product.diamondOptions.length > 0 ? (
+                  <div className="mt-3 grid grid-cols-2 gap-2">
+                    {product.diamondOptions.map((option) => (
+                      <button
+                        key={option}
+                        type="button"
+                        onClick={() => setSelectedDiamondType(option)}
+                        className={`h-12 border text-sm ${
+                          selectedDiamondType === option
+                            ? 'border-gold text-gold bg-gold/10'
+                            : 'border-white/20 text-gray-300 hover:border-gold/60 hover:text-gold'
+                        }`}
+                      >
+                        {option}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="mt-3 text-sm text-gray-400">No diamond type variants configured in database.</p>
+                )}
               </div>
             </div>
 
