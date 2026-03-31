@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowLeft, Heart, Info, Plus, Share2, Star } from 'lucide-react';
+import { ArrowLeft, Heart, Share2, Star } from 'lucide-react';
 import { useParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { collections } from '../data/collections';
@@ -72,20 +72,13 @@ function ProductDetailPage() {
     caratOptions.find((option) => option.value === selectedCaratWeight)?.multiplier ?? 1;
   const diamondMultiplier = selectedDiamondType === 'Natural Diamond' ? 1.18 : 1;
   const calculatedPrice = Math.round((basePrice * metalMultiplier * caratMultiplier * diamondMultiplier) / 10) * 10;
-  const monthlyPayment = calculatedPrice / 6;
   const calculatedWidth = (3 + Number(selectedCaratWeight) * 0.2).toFixed(2);
 
   const diamondType = selectedDiamondType;
   const gallery = [product.image, product.hoverImage, collection.image, '/featured-detail.jpg'];
   const ringSizes = ['2', '3', '4', '5', '6', '7', '8', '9.5', '11'];
+  const isProductAvailable = ringSizes.length > 0;
   const similarProducts = collection.products.filter((item) => item.id !== product.id).slice(0, 4);
-  const infoSections = [
-    'Your Order Includes',
-    'Product Details',
-    'Secure Shipping',
-    'Lifetime Product Warranty',
-    'About Fine Jewelry',
-  ];
 
   const handleAddToCart = () => {
     if (!selectedRingSize) {
@@ -194,11 +187,6 @@ function ProductDetailPage() {
             </div>
 
             <p className="text-4xl font-semibold text-gold mt-6">{formatCurrency(calculatedPrice)}</p>
-            <p className="mt-2 text-sm text-gray-300 inline-flex items-center gap-1">
-              Starting at 6 payments 0% APR of
-              <span className="text-white font-semibold">${monthlyPayment.toFixed(2)}/mo</span>
-              <Info className="w-3.5 h-3.5" />
-            </p>
 
             <div className="mt-6 pt-5 border-t border-white/10 space-y-4">
               <div>
@@ -222,9 +210,9 @@ function ProductDetailPage() {
                 <p className="text-xs text-gray-400 mt-2">*This ring cannot be resized</p>
               </div>
 
-              <div className="text-sm text-gray-300">
-                Ships by: <span className="text-white font-semibold">Wednesday, April 15</span>
-              </div>
+              <p className={`text-sm font-medium ${isProductAvailable ? 'text-emerald-400' : 'text-amber-400'}`}>
+                {isProductAvailable ? 'Product is Available' : 'Product is Currently Unavailable'}
+              </p>
               <a href="#" className="inline-flex text-sm text-gold hover:text-gold-light transition-colors">
                 Free Overnight Shipping Hassle-Free Returns
               </a>
@@ -325,19 +313,6 @@ function ProductDetailPage() {
               </div>
             </div>
 
-            <div className="mt-6 border-t border-white/10">
-              {infoSections.map((section) => (
-                <details key={section} className="border-b border-white/10 group">
-                  <summary className="list-none cursor-pointer py-3 flex items-center justify-between text-sm text-white">
-                    <span>{section}</span>
-                    <Plus className="w-4 h-4 text-gray-300 group-open:rotate-45 transition-transform" />
-                  </summary>
-                  <div className="pb-3 text-xs text-gray-300 leading-relaxed">
-                    Premium craftsmanship and verified quality standards are included for this selection.
-                  </div>
-                </details>
-              ))}
-            </div>
           </div>
         </div>
       </section>

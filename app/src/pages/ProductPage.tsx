@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, Heart, Info, Loader2, Share2, ShoppingBag, Star, Truck } from 'lucide-react';
+import { ArrowLeft, Heart, Loader2, Share2, ShoppingBag, Star } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { Badge } from '@/components/ui/badge';
@@ -92,14 +92,6 @@ function ProductPage() {
 
     return Math.round(calculated / 100) * 100;
   }, [selectedCarat, selectedDiamondType, selectedMetal, product]);
-
-  const monthlyEmi = useMemo(() => {
-    if (!product) {
-      return 0;
-    }
-
-    return Math.round(price / product.emiMonths);
-  }, [price, product]);
 
   const formatPrice = (value: number) =>
     new Intl.NumberFormat('en-IN', {
@@ -341,11 +333,6 @@ function ProductPage() {
                 </div>
 
                 <p className="text-3xl md:text-4xl font-semibold text-gold">{formatPrice(price)}</p>
-                <p className="text-sm text-gray-300 inline-flex items-center gap-1">
-                  Starting at {product.emiMonths} payments of
-                  <span className="text-white font-semibold">{formatPrice(monthlyEmi)}</span>
-                  <Info className="w-3.5 h-3.5" />
-                </p>
 
                 <div className="pt-5 border-t border-white/10 space-y-5">
                   <div>
@@ -430,13 +417,9 @@ function ProductPage() {
                     <p className="text-xs text-gray-400 mt-2">*This ring cannot be resized</p>
                   </div>
 
-                  <div className="space-y-1 text-sm text-gray-300">
-                    <p className="inline-flex items-center gap-2">
-                      <Truck className="w-4 h-4 text-gold" />
-                      Ships by: <span className="text-white font-semibold">{product.shipsBy}</span>
-                    </p>
-                    <p className={product.inStock ? 'text-emerald-400' : 'text-amber-400'}>
-                      {product.inStock ? 'In Stock' : 'Made to Order'}
+                  <div className="space-y-1 text-sm">
+                    <p className={product.inStock ? 'text-emerald-400 font-medium' : 'text-amber-400 font-medium'}>
+                      {product.inStock ? 'Product is Available' : 'Product is Currently Unavailable'}
                     </p>
                   </div>
 

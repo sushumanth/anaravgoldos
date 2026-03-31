@@ -389,16 +389,6 @@ function CollectionPage() {
                   </h3>
                   <p className="text-lg text-gold mt-1">{product.price}</p>
 
-                  <div className="mt-2.5 flex items-center gap-1.5">
-                    {product.colors.map((color, index) => (
-                      <span
-                        key={`${product.id}-color-${index}`}
-                        className="w-5 h-5 rounded-full border border-white/30"
-                        style={{ backgroundColor: color }}
-                      />
-                    ))}
-                  </div>
-
                   <div className="mt-2.5 flex flex-wrap gap-1.5">
                     {product.badges.map((badge) => (
                       <span

@@ -137,16 +137,16 @@ function CategoryPage() {
 
   return (
     <main className="min-h-screen bg-charcoal text-white page-fade-in">
-      <section className="section-padding pt-8 md:pt-10 pb-2 md:pb-2 border-b border-white/5 bg-charcoal-light/50">
+      <section className="section-padding pt-5 md:pt-6 pb-1 md:pb-1 border-b border-white/5 bg-charcoal-light/50">
         <div className="max-w-7xl mx-auto">
           <Link to="/" className="inline-flex items-center gap-2 text-xs md:text-sm text-gold hover:text-gold-light transition-colors">
             <ArrowLeft className="w-4 h-4" />
             Back to Home
           </Link>
-          <div className="mt-2 md:mt-3 flex flex-col md:flex-row md:items-end justify-between gap-1.5 md:gap-3">
+          <div className="mt-1.5 md:mt-2 flex flex-col md:flex-row md:items-center justify-between gap-1 md:gap-2">
             <div>
               <p className="text-gold uppercase tracking-[0.22em] text-[10px] md:text-xs">Curated Category</p>
-              <h1 className="font-serif text-[2.3rem] md:text-[2.65rem] leading-tight text-white mt-1 md:mt-1.5">{activeCategory.name}</h1>
+              <h1 className="font-serif text-[1.7rem] md:text-[1.95rem] leading-tight text-white mt-1">{activeCategory.name}</h1>
             </div>
             <div className="flex items-center gap-4 md:pb-0.5">
                 <div className="text-xs md:text-sm text-gray-400">{isLoading ? 0 : filteredProducts.length} Products Available</div>

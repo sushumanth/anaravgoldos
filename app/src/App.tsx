@@ -36,6 +36,13 @@ function App() {
   const [isAppointmentDialogOpen, setIsAppointmentDialogOpen] = useState(false);
   const [wishlist, setWishlist] = useState<number[]>(() => getWishlistIds());
   const [isHeroVideoReady, setIsHeroVideoReady] = useState(false);
+  const [isBridalVideoReady, setIsBridalVideoReady] = useState(false);
+  const [hasBridalVideoError, setHasBridalVideoError] = useState(false);
+  const [isGoldClassicsVideoReady, setIsGoldClassicsVideoReady] = useState(false);
+  const [hasGoldClassicsVideoError, setHasGoldClassicsVideoError] = useState(false);
+  const [isEssentialsVideoReady, setIsEssentialsVideoReady] = useState(false);
+  const [hasEssentialsVideoError, setHasEssentialsVideoError] = useState(false);
+  const [hoveredCollection, setHoveredCollection] = useState<string | null>(null);
   const [shouldPlayHeroVideo] = useState(() => {
     if (typeof window === 'undefined') {
       return true;
@@ -418,13 +425,93 @@ function App() {
                 key={collection.name}
                 to={`/collections/${collection.slug}`}
                 className="collection-card group relative overflow-hidden cursor-pointer block"
+                onMouseEnter={() => setHoveredCollection(collection.slug)}
+                onMouseLeave={() => setHoveredCollection(null)}
               >
-                <div className="aspect-[2/3] overflow-hidden">
+                <div className="relative aspect-[2/3] overflow-hidden bg-charcoal-dark">
                   <img 
                     src={collection.image} 
                     alt={collection.name}
-                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                    className={`w-full h-full object-cover transform-gpu will-change-opacity transition-all duration-1000 ease-in-out group-hover:scale-110 ${
+                      ((collection.slug === 'bridal-collection' && shouldPlayHeroVideo && !hasBridalVideoError && isBridalVideoReady && hoveredCollection === 'bridal-collection') ||
+                       (collection.slug === 'gold-classics' && shouldPlayHeroVideo && !hasGoldClassicsVideoError && isGoldClassicsVideoReady && hoveredCollection === 'gold-classics') ||
+                       (collection.slug === 'diamond-essentials' && shouldPlayHeroVideo && !hasEssentialsVideoError && isEssentialsVideoReady && hoveredCollection === 'diamond-essentials'))
+                        ? 'opacity-0 pointer-events-none'
+                        : 'opacity-100'
+                    } ${
+                      ((collection.slug === 'bridal-collection' && shouldPlayHeroVideo && !hasBridalVideoError && !isBridalVideoReady && hoveredCollection === 'bridal-collection') ||
+                       (collection.slug === 'gold-classics' && shouldPlayHeroVideo && !hasGoldClassicsVideoError && !isGoldClassicsVideoReady && hoveredCollection === 'gold-classics') ||
+                       (collection.slug === 'diamond-essentials' && shouldPlayHeroVideo && !hasEssentialsVideoError && !isEssentialsVideoReady && hoveredCollection === 'diamond-essentials'))
+                        ? 'animate-pulse'
+                        : ''
+                    }`}
                   />
+
+                  {collection.slug === 'bridal-collection' && shouldPlayHeroVideo && !hasBridalVideoError && hoveredCollection === 'bridal-collection' && (
+                    <video
+                      autoPlay
+                      loop
+                      muted
+                      playsInline
+                      preload="metadata"
+                      poster={collection.image}
+                      onCanPlay={() => setIsBridalVideoReady(true)}
+                      onError={() => {
+                        setHasBridalVideoError(true);
+                        setIsBridalVideoReady(false);
+                      }}
+                      className={`absolute inset-0 w-full h-full object-cover transform-gpu will-change-opacity transition-all duration-1000 ease-in-out group-hover:scale-110 pointer-events-none ${
+                        isBridalVideoReady ? 'opacity-100' : 'opacity-0'
+                      }`}
+                      aria-label="Bridal collection video preview"
+                    >
+                      <source src="/bridalvideo.mp4" type="video/mp4" />
+                    </video>
+                  )}
+
+                  {collection.slug === 'gold-classics' && shouldPlayHeroVideo && !hasGoldClassicsVideoError && hoveredCollection === 'gold-classics' && (
+                    <video
+                      autoPlay
+                      loop
+                      muted
+                      playsInline
+                      preload="metadata"
+                      poster={collection.image}
+                      onCanPlay={() => setIsGoldClassicsVideoReady(true)}
+                      onError={() => {
+                        setHasGoldClassicsVideoError(true);
+                        setIsGoldClassicsVideoReady(false);
+                      }}
+                      className={`absolute inset-0 w-full h-full object-cover transform-gpu will-change-opacity transition-all duration-1000 ease-in-out group-hover:scale-110 pointer-events-none ${
+                        isGoldClassicsVideoReady ? 'opacity-100' : 'opacity-0'
+                      }`}
+                      aria-label="Gold Classics collection video preview"
+                    >
+                      <source src="/clasicalvideo.mp4" type="video/mp4" />
+                    </video>
+                  )}
+
+                  {collection.slug === 'diamond-essentials' && shouldPlayHeroVideo && !hasEssentialsVideoError && hoveredCollection === 'diamond-essentials' && (
+                    <video
+                      autoPlay
+                      loop
+                      muted
+                      playsInline
+                      preload="metadata"
+                      poster={collection.image}
+                      onCanPlay={() => setIsEssentialsVideoReady(true)}
+                      onError={() => {
+                        setHasEssentialsVideoError(true);
+                        setIsEssentialsVideoReady(false);
+                      }}
+                      className={`absolute inset-0 w-full h-full object-cover transform-gpu will-change-opacity transition-all duration-1000 ease-in-out group-hover:scale-110 pointer-events-none ${
+                        isEssentialsVideoReady ? 'opacity-100' : 'opacity-0'
+                      }`}
+                      aria-label="Diamond Essentials collection video preview"
+                    >
+                      <source src="/diamondvideo.mp4" type="video/mp4" />
+                    </video>
+                  )}
                 </div>
                 <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
                 <div className="absolute bottom-0 left-0 right-0 p-6">
@@ -738,7 +825,7 @@ function App() {
       <Dialog open={isProductDialogOpen} onOpenChange={setIsProductDialogOpen}>
         <DialogContent className="bg-charcoal border-white/10 max-w-4xl max-h-[90vh] overflow-y-auto">
           {selectedProduct && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 items-start gap-4">
               <div className="aspect-square">
                 <img 
                   src={selectedProduct.image} 
@@ -788,7 +875,7 @@ function App() {
                     className="flex-1 border-gold text-gold hover:bg-gold hover:text-charcoal"
                   >
                     <Calendar className="w-5 h-5 mr-2" />
-                    Book Viewing
+                    Book View
                   </Button>
                 </div>
               </div>
