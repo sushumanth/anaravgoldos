@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { collections as localCollections, type Collection as LocalCollection } from '@/data/collections';
 
 type CategoryRow = {
   id: number;
@@ -21,6 +22,7 @@ type ProductRow = {
   slug: string;
   sku: string;
   base_price: number;
+  original_price: number | null;
   image_url: string | null;
   hover_image_url: string | null;
   description: string | null;
@@ -36,6 +38,12 @@ type ProductRow = {
 };
 
 type ProductImageRow = {
+  image_url: string;
+  sort_order: number;
+};
+
+type ProductImageByProductRow = {
+  product_id: number;
   image_url: string;
   sort_order: number;
 };
@@ -129,6 +137,62 @@ export type ShopProductDetail = {
 
 const fallbackImage = '/collection-1.jpg';
 
+function normalizeImageUrl(value: string | null | undefined): string | null {
+  if (!value) {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function normalizeSlug(value: string): string {
+  return decodeURIComponent(value)
+    .trim()
+    .toLowerCase()
+    .replace(/[_\s]+/g, '-')
+    .replace(/-+/g, '-');
+}
+
+function toPriceNumber(value: number | string | null | undefined): number {
+  if (value === null || value === undefined) {
+    return 0;
+  }
+
+  const parsed = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function getDisplayPrice(row: Pick<ProductRow, 'base_price' | 'original_price'>): number {
+  const originalPrice = toPriceNumber(row.original_price);
+  if (originalPrice > 0) {
+    return originalPrice;
+  }
+
+  return toPriceNumber(row.base_price);
+}
+
+function findLocalCollectionBySlug(slug: string): LocalCollection | null {
+  const normalizedSlug = normalizeSlug(slug);
+  const bySlug = localCollections.find((collection) => normalizeSlug(collection.slug) === normalizedSlug);
+  if (bySlug) {
+    return bySlug;
+  }
+
+  return localCollections.find((collection) => normalizeSlug(collection.name) === normalizedSlug) ?? null;
+}
+
+function mapLocalCollection(collection: LocalCollection): ShopCollection {
+  return {
+    id: 0,
+    name: collection.name,
+    slug: normalizeSlug(collection.slug),
+    subtitle: collection.subtitle,
+    description: collection.description,
+    image: collection.image || fallbackImage,
+  };
+}
+
 function toNumber(value: string): number {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : 0;
@@ -144,6 +208,30 @@ function asIntRating(value: number | null): number {
 
 function getDiamondTypeLabel(optionValue: string): string {
   return optionValue.trim();
+}
+
+function resolveProductImages(
+  row: Pick<ProductRow, 'image_url' | 'hover_image_url'>,
+  orderedProductImages: string[] = [],
+): { image: string; hoverImage: string; gallery: string[] } {
+  const gallery = Array.from(
+    new Set(
+      [
+        ...orderedProductImages,
+        normalizeImageUrl(row.image_url),
+        normalizeImageUrl(row.hover_image_url),
+      ].filter((value): value is string => Boolean(value)),
+    ),
+  );
+
+  const image = gallery[0] ?? fallbackImage;
+  const hoverImage = gallery[1] ?? gallery[0] ?? fallbackImage;
+
+  return {
+    image,
+    hoverImage,
+    gallery,
+  };
 }
 
 function normalizeCollection(row: CollectionRow): ShopCollection {
@@ -163,6 +251,7 @@ function mapProductCard(
   collectionSlug: string | null,
   primaryMetal: string,
   reviewsCount: number,
+  images: { image: string; hoverImage: string },
 ): ShopProductCard {
   return {
     id: row.id,
@@ -171,9 +260,9 @@ function mapProductCard(
     category: category.name,
     categorySlug: category.slug,
     collectionSlug,
-    price: row.base_price,
-    image: row.image_url || fallbackImage,
-    hoverImage: row.hover_image_url || row.image_url || fallbackImage,
+    price: getDisplayPrice(row),
+    image: images.image,
+    hoverImage: images.hoverImage,
     rating: asIntRating(row.rating),
     isNew: Boolean(row.is_new),
     isBestSeller: Boolean(row.is_best_seller),
@@ -280,16 +369,51 @@ async function getReviewCountsByProductIds(ids: number[]): Promise<Map<number, n
   return counts;
 }
 
+async function getProductImageSetsByProductIds(ids: number[]): Promise<Map<number, string[]>> {
+  if (ids.length === 0) {
+    return new Map();
+  }
+
+  const { data, error } = await supabase
+    .from('product_images')
+    .select('product_id, image_url, sort_order')
+    .in('product_id', ids)
+    .order('product_id', { ascending: true })
+    .order('sort_order', { ascending: true });
+
+  if (error) {
+    throw error;
+  }
+
+  const map = new Map<number, string[]>();
+
+  (data as ProductImageByProductRow[]).forEach((row) => {
+    const imageUrl = normalizeImageUrl(row.image_url);
+    if (!imageUrl) {
+      return;
+    }
+
+    const existing = map.get(row.product_id) ?? [];
+    if (!existing.includes(imageUrl)) {
+      existing.push(imageUrl);
+      map.set(row.product_id, existing);
+    }
+  });
+
+  return map;
+}
+
 async function getProductCards(rows: ProductRow[]): Promise<ShopProductCard[]> {
   const productIds = rows.map((row) => row.id);
   const categoryIds = Array.from(new Set(rows.map((row) => row.category_id)));
   const collectionIds = Array.from(new Set(rows.map((row) => row.collection_id).filter((id): id is number => Boolean(id))));
 
-  const [categoriesMap, collectionsMap, metalsMap, reviewCountsMap] = await Promise.all([
+  const [categoriesMap, collectionsMap, metalsMap, reviewCountsMap, productImagesMap] = await Promise.all([
     getCategoriesByIds(categoryIds),
     getCollectionsByIds(collectionIds),
     getPrimaryMetalsByProductIds(productIds),
     getReviewCountsByProductIds(productIds),
+    getProductImageSetsByProductIds(productIds),
   ]);
 
   return rows.map((row) => {
@@ -302,8 +426,9 @@ async function getProductCards(rows: ProductRow[]): Promise<ShopProductCard[]> {
     const collectionSlug = row.collection_id ? collectionsMap.get(row.collection_id)?.slug ?? null : null;
     const metal = metalsMap.get(row.id) ?? 'Gold';
     const reviewsCount = reviewCountsMap.get(row.id) ?? 0;
+    const images = resolveProductImages(row, productImagesMap.get(row.id));
 
-    return mapProductCard(row, category, collectionSlug, metal, reviewsCount);
+    return mapProductCard(row, category, collectionSlug, metal, reviewsCount, images);
   });
 }
 
@@ -356,7 +481,7 @@ export async function fetchProductsByCategorySlug(slug: string): Promise<{ categ
 
   const { data, error } = await supabase
     .from('products')
-    .select('id, name, slug, sku, base_price, image_url, hover_image_url, description, long_description, rating, is_new, is_best_seller, is_engravable, stock_quantity, created_at, category_id, collection_id')
+    .select('id, name, slug, sku, base_price, original_price, image_url, hover_image_url, description, long_description, rating, is_new, is_best_seller, is_engravable, stock_quantity, created_at, category_id, collection_id')
     .eq('category_id', category.id)
     .eq('is_active', true)
     .order('created_at', { ascending: false });
@@ -375,22 +500,43 @@ export async function fetchProductsByCategorySlug(slug: string): Promise<{ categ
 }
 
 export async function fetchCollectionBySlug(slug: string): Promise<ShopCollection | null> {
+  const normalizedSlug = normalizeSlug(slug);
+  const slugVariants = Array.from(
+    new Set([
+      slug,
+      normalizedSlug,
+      normalizedSlug.replace(/-/g, '_'),
+      normalizedSlug.replace(/-/g, ' '),
+    ]),
+  );
+
   const { data, error } = await supabase
     .from('collections')
     .select('id, name, slug, subtitle, description, image_url')
-    .eq('slug', slug)
-    .eq('is_active', true)
-    .maybeSingle();
+    .in('slug', slugVariants)
+    .eq('is_active', true);
 
   if (error) {
+    const localCollection = findLocalCollectionBySlug(slug);
+    if (localCollection) {
+      return mapLocalCollection(localCollection);
+    }
+
     throw error;
   }
 
-  if (!data) {
-    return null;
+  const rows = (data ?? []) as CollectionRow[];
+  if (rows.length > 0) {
+    const bestMatch = rows.find((row) => normalizeSlug(row.slug) === normalizedSlug) ?? rows[0];
+    return normalizeCollection(bestMatch);
   }
 
-  return normalizeCollection(data as CollectionRow);
+  const localCollection = findLocalCollectionBySlug(slug);
+  if (localCollection) {
+    return mapLocalCollection(localCollection);
+  }
+
+  return null;
 }
 
 export async function fetchProductsByCollectionSlug(slug: string): Promise<{ collection: ShopCollection | null; products: ShopCollectionProduct[] }> {
@@ -402,9 +548,16 @@ export async function fetchProductsByCollectionSlug(slug: string): Promise<{ col
     };
   }
 
+  if (collection.id <= 0) {
+    return {
+      collection,
+      products: [],
+    };
+  }
+
   const { data, error } = await supabase
     .from('products')
-    .select('id, name, slug, sku, base_price, image_url, hover_image_url, description, long_description, rating, is_new, is_best_seller, is_engravable, stock_quantity, created_at, category_id, collection_id')
+    .select('id, name, slug, sku, base_price, original_price, image_url, hover_image_url, description, long_description, rating, is_new, is_best_seller, is_engravable, stock_quantity, created_at, category_id, collection_id')
     .eq('collection_id', collection.id)
     .eq('is_active', true)
     .order('created_at', { ascending: false });
@@ -414,11 +567,17 @@ export async function fetchProductsByCollectionSlug(slug: string): Promise<{ col
   }
 
   const rows = (data ?? []) as ProductRow[];
+
   const productIds = rows.map((row) => row.id);
-  const reviewCounts = await getReviewCountsByProductIds(productIds);
+  const [reviewCounts, productImagesMap] = await Promise.all([
+    getReviewCountsByProductIds(productIds),
+    getProductImageSetsByProductIds(productIds),
+  ]);
 
   const mapped = rows.map((row) => {
     const badges: string[] = [];
+    const displayPrice = getDisplayPrice(row);
+    const images = resolveProductImages(row, productImagesMap.get(row.id));
 
     if (row.is_best_seller) {
       badges.push('Best Seller');
@@ -439,10 +598,10 @@ export async function fetchProductsByCollectionSlug(slug: string): Promise<{ col
         style: 'currency',
         currency: 'INR',
         maximumFractionDigits: 0,
-      }).format(row.base_price),
-      priceValue: row.base_price,
-      image: row.image_url || fallbackImage,
-      hoverImage: row.hover_image_url || row.image_url || fallbackImage,
+      }).format(displayPrice),
+      priceValue: displayPrice,
+      image: images.image,
+      hoverImage: images.hoverImage,
       badges,
       rating: asIntRating(row.rating),
       reviews: reviewCounts.get(row.id) ?? 0,
@@ -459,7 +618,7 @@ export async function fetchProductsByCollectionSlug(slug: string): Promise<{ col
 export async function fetchProductDetailById(productId: number): Promise<ShopProductDetail | null> {
   const { data, error } = await supabase
     .from('products')
-    .select('id, name, slug, sku, base_price, image_url, hover_image_url, description, long_description, rating, is_new, is_best_seller, is_engravable, stock_quantity, created_at, category_id, collection_id')
+    .select('id, name, slug, sku, base_price, original_price, image_url, hover_image_url, description, long_description, rating, is_new, is_best_seller, is_engravable, stock_quantity, created_at, category_id, collection_id')
     .eq('id', productId)
     .eq('is_active', true)
     .maybeSingle();
@@ -566,13 +725,11 @@ export async function fetchProductDetailById(productId: number): Promise<ShopPro
   const availableSizes = sizeRows.filter((size) => size.is_available).map((size) => size.size_label);
   const unavailableSizes = sizeRows.filter((size) => !size.is_available).map((size) => size.size_label);
 
-  const gallery = Array.from(
-    new Set([
-      row.image_url || fallbackImage,
-      row.hover_image_url || row.image_url || fallbackImage,
-      ...imageRows.map((item) => item.image_url),
-    ]),
-  );
+  const orderedGalleryImages = imageRows
+    .map((item) => normalizeImageUrl(item.image_url))
+    .filter((value): value is string => Boolean(value));
+  const resolvedImages = resolveProductImages(row, orderedGalleryImages);
+  const gallery = resolvedImages.gallery.length > 0 ? resolvedImages.gallery : [resolvedImages.image];
 
   return {
     id: row.id,
@@ -584,9 +741,9 @@ export async function fetchProductDetailById(productId: number): Promise<ShopPro
     collectionSlug,
     description: row.description ?? '',
     longDescription: row.long_description ?? row.description ?? '',
-    price: row.base_price,
-    image: row.image_url || fallbackImage,
-    hoverImage: row.hover_image_url || row.image_url || fallbackImage,
+    price: getDisplayPrice(row),
+    image: resolvedImages.image,
+    hoverImage: resolvedImages.hoverImage,
     gallery,
     rating: asIntRating(row.rating),
     reviewsCount: reviewsRes.count ?? 0,

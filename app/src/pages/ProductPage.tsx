@@ -75,13 +75,7 @@ function ProductPage() {
 
   const productName = product?.name ?? 'Jewelry product';
 
-  const price = useMemo(() => {
-    if (!product) {
-      return 0;
-    }
-
-    return product.price;
-  }, [selectedCarat, selectedDiamondType, selectedMetal, product]);
+  const price = product?.price ?? 0;
 
   const formatPrice = (value: number) =>
     new Intl.NumberFormat('en-IN', {

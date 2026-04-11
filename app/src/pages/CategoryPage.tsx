@@ -30,6 +30,7 @@ function ProductSkeletonCard() {
 
 function CategoryPage() {
   const { categoryName = '' } = useParams();
+  const normalizedCategorySlug = decodeURIComponent(categoryName).trim().toLowerCase();
   const navigate = useNavigate();
   const { totalItems } = useCart();
   const [activeCategory, setActiveCategory] = useState<ShopCategory | null>(null);
@@ -48,10 +49,12 @@ function CategoryPage() {
 
     const loadCategoryData = async () => {
       setIsLoading(true);
+      setActiveCategory(null);
+      setProducts([]);
 
       try {
         const [categoryPayload, categoriesPayload] = await Promise.all([
-          fetchProductsByCategorySlug(categoryName),
+          fetchProductsByCategorySlug(normalizedCategorySlug),
           fetchAllCategories(),
         ]);
 
@@ -92,7 +95,7 @@ function CategoryPage() {
     return () => {
       isMounted = false;
     };
-  }, [categoryName]);
+  }, [normalizedCategorySlug]);
 
   const metalTypes = useMemo(() => {
     return Array.from(new Set(products.map((product) => product.metal)));
@@ -157,6 +160,29 @@ function CategoryPage() {
   };
 
   const maxCategoryPrice = products.length > 0 ? Math.max(...products.map((product) => product.price)) : 0;
+
+  if (isLoading && !activeCategory) {
+    return (
+      <main className="min-h-screen bg-charcoal text-white page-fade-in">
+        <section className="section-padding pt-5 md:pt-6 pb-1 md:pb-1 border-b border-white/5 bg-charcoal-light/50">
+          <div className="max-w-7xl mx-auto">
+            <div className="mt-1.5 md:mt-2">
+              <p className="text-gold uppercase tracking-[0.22em] text-[10px] md:text-xs">Curated Category</p>
+              <div className="h-10 w-52 mt-2 bg-white/5 rounded skeleton-shimmer" />
+            </div>
+          </div>
+        </section>
+
+        <section className="section-padding pt-3 md:pt-4 pb-10 md:pb-12">
+          <div className="max-w-7xl mx-auto grid grid-cols-2 xl:grid-cols-4 md:grid-cols-3 gap-6">
+            {Array.from({ length: 8 }).map((_, index) => (
+              <ProductSkeletonCard key={index} />
+            ))}
+          </div>
+        </section>
+      </main>
+    );
+  }
 
   if (!activeCategory) {
     return (

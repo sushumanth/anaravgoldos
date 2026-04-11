@@ -88,13 +88,7 @@ function ProductDetailPage() {
     };
   }, [slug, productId]);
 
-  const calculatedPrice = useMemo(() => {
-    if (!product) {
-      return 0;
-    }
-
-    return product.price;
-  }, [product, selectedMetal, selectedCaratWeight, selectedDiamondType]);
+  const calculatedPrice = product?.price ?? 0;
 
   const gallery = useMemo(() => {
     if (!product) {
