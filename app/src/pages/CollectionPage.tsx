@@ -1,10 +1,10 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, ChevronDown, Heart, Star, X } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
-import { collections } from '../data/collections';
 import { getWishlistIds, toggleWishlistItem } from '../lib/shop-storage';
 import { useCart } from '../context/CartContext';
+import { fetchProductsByCollectionSlug, type ShopCollection, type ShopCollectionProduct } from '@/lib/shop-api';
 
 type Audience = 'Women' | 'Men' | 'Unisex';
 type FilterKey = 'style' | 'diamondType' | 'metal' | 'priceBand';
@@ -65,7 +65,9 @@ function inferAudience(id: number): Audience {
 
 function CollectionPage() {
   const { slug = '' } = useParams();
-  const collection = collections.find((item) => item.slug === slug);
+  const [collection, setCollection] = useState<ShopCollection | null>(null);
+  const [collectionProducts, setCollectionProducts] = useState<ShopCollectionProduct[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const { addToCart } = useCart();
   const audienceOptions: Audience[] = ['Women', 'Men', 'Unisex'];
   const [selectedAudience, setSelectedAudience] = useState<Audience | null>(null);
@@ -84,10 +86,45 @@ function CollectionPage() {
   const [wishlistIds, setWishlistIds] = useState<number[]>(() => getWishlistIds());
   const [cartMessage, setCartMessage] = useState('');
 
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadCollection = async () => {
+      setIsLoading(true);
+
+      try {
+        const payload = await fetchProductsByCollectionSlug(slug);
+        if (!isMounted) {
+          return;
+        }
+
+        setCollection(payload.collection);
+        setCollectionProducts(payload.products);
+      } catch {
+        if (!isMounted) {
+          return;
+        }
+
+        setCollection(null);
+        setCollectionProducts([]);
+        toast.error('Unable to load collection products from Supabase.');
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    void loadCollection();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [slug]);
+
   const products = useMemo(() => {
-    if (!collection) return [];
-    return collection.products.map((product) => {
-      const priceValue = parsePriceValue(product.price);
+    return collectionProducts.map((product) => {
+      const priceValue = product.priceValue || parsePriceValue(product.price);
       const style = detectStyle(product.name);
       const metal = detectMetal(product.name);
       const diamondType = product.badges.includes('Lab Grown') ? 'Lab Grown' : 'Natural';
@@ -104,7 +141,7 @@ function CollectionPage() {
         score: product.rating * 100 + product.reviews,
       };
     });
-  }, [collection]);
+  }, [collectionProducts]);
 
   const filteredProducts = useMemo(() => {
     return products.filter((product) => {
@@ -133,9 +170,19 @@ function CollectionPage() {
     toggleState.engravable ||
     (Object.keys(selectedFilters) as FilterKey[]).some((key) => selectedFilters[key].length > 0);
 
-  if (!collection) {
-    window.location.replace('/');
-    return null;
+  if (!isLoading && !collection) {
+    return (
+      <div className="min-h-screen bg-charcoal text-white section-padding py-20">
+        <div className="max-w-3xl mx-auto border border-white/10 bg-charcoal-light p-10 text-center">
+          <h1 className="font-serif text-3xl text-white mb-3">Collection Not Found</h1>
+          <p className="text-gray-300 mb-5">This collection is unavailable or missing in Supabase.</p>
+          <Link to="/" className="inline-flex items-center gap-2 text-gold hover:text-gold-light transition-colors">
+            <ArrowLeft className="w-4 h-4" />
+            Back to Home
+          </Link>
+        </div>
+      </div>
+    );
   }
 
   const toggleFilterValue = (key: FilterKey, value: string) => {
@@ -206,10 +253,10 @@ function CollectionPage() {
 
       <section className="section-padding py-7">
         <div className="max-w-5xl">
-          <p className="text-[11px] tracking-[0.2em] uppercase text-gold/80 mb-2">{collection.subtitle}</p>
-          <h1 className="font-serif text-2xl md:text-3xl text-white mb-3">{collection.name}</h1>
+          <p className="text-[11px] tracking-[0.2em] uppercase text-gold/80 mb-2">{collection?.subtitle}</p>
+          <h1 className="font-serif text-2xl md:text-3xl text-white mb-3">{collection?.name}</h1>
           <p className="text-sm text-gray-300 max-w-4xl leading-relaxed">
-            {collection.description}
+            {collection?.description}
           </p>
 
           <div className="mt-5 flex flex-wrap items-center gap-2.5">
@@ -332,7 +379,7 @@ function CollectionPage() {
         </div>
 
         <div className="mt-6 flex flex-col md:flex-row md:items-end md:justify-between gap-4 border-t border-white/10 pt-4">
-          <p className="text-base text-gray-400">{filteredProducts.length.toLocaleString()} Results</p>
+          <p className="text-base text-gray-400">{isLoading ? 'Loading...' : `${filteredProducts.length.toLocaleString()} Results`}</p>
           <div className="flex flex-col sm:flex-row gap-6">
             <div>
               <p className="text-sm text-gray-400 mb-1">Sort By</p>
@@ -351,13 +398,28 @@ function CollectionPage() {
           </div>
         </div>
 
+        {isLoading && (
+          <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
+            {Array.from({ length: 8 }).map((_, index) => (
+              <div key={index} className="bg-white/[0.04] border border-white/10 rounded-sm overflow-hidden">
+                <div className="aspect-[4/4.2] bg-white/5 skeleton-shimmer" />
+                <div className="p-3.5 space-y-3">
+                  <div className="h-4 bg-white/5 rounded skeleton-shimmer" />
+                  <div className="h-4 w-2/3 bg-white/5 rounded skeleton-shimmer" />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {!isLoading && (
         <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
           {filteredProducts.map((product) => (
             <article
               key={product.id}
               className="group bg-white/[0.04] border border-white/10 rounded-sm overflow-hidden hover:border-gold/50 transition-colors"
             >
-              <Link to={`/collections/${collection.slug}/product/${product.id}`} className="block">
+              <Link to={`/collections/${slug}/product/${product.id}`} className="block">
                 <div className="relative aspect-[4/4.2] bg-black/30 overflow-hidden">
                   <img
                     src={product.image}
@@ -428,6 +490,7 @@ function CollectionPage() {
             </article>
           ))}
         </div>
+        )}
 
         {cartMessage && (
           <p className="mt-3 text-sm text-gold">{cartMessage}</p>

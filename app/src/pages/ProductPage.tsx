@@ -7,31 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useCart } from '@/context/CartContext';
 import { useIsMobile } from '@/hooks/use-mobile';
-import {
-  getProductDetailById,
-  toCategorySlug,
-  type DiamondType,
-  type MetalType,
-} from '@/data/catalog';
-
-const metalMultiplier: Record<MetalType, number> = {
-  Gold: 1,
-  Diamond: 1.18,
-  Platinum: 1.26,
-};
-
-const diamondMultiplier: Record<DiamondType, number> = {
-  Natural: 1.15,
-  'Lab-Grown': 1,
-};
-
-const caratMultiplier: Record<number, number> = {
-  2: 0.88,
-  3: 1,
-  4: 1.16,
-  5: 1.29,
-  6: 1.45,
-};
+import { fetchProductDetailById, type ShopProductDetail } from '@/lib/shop-api';
 
 function ProductPage() {
   const { productId = '' } = useParams();
@@ -39,34 +15,54 @@ function ProductPage() {
   const { addToCart, totalItems } = useCart();
   const resolvedProductId = Number(productId);
 
-  const [product, setProduct] = useState<ReturnType<typeof getProductDetailById>>(null);
+  const [product, setProduct] = useState<ShopProductDetail | null>(null);
   const [loadedProductId, setLoadedProductId] = useState<number | null>(null);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [wishlisted, setWishlisted] = useState(false);
 
-  const [selectedMetal, setSelectedMetal] = useState<MetalType>('Gold');
-  const [selectedCarat, setSelectedCarat] = useState(3);
-  const [selectedDiamondType, setSelectedDiamondType] = useState<DiamondType>('Lab-Grown');
+  const [selectedMetal, setSelectedMetal] = useState('');
+  const [selectedCarat, setSelectedCarat] = useState(0);
+  const [selectedDiamondType, setSelectedDiamondType] = useState('');
   const [selectedRingSize, setSelectedRingSize] = useState('');
   const [isAddingToCart, setIsAddingToCart] = useState(false);
   const isLoading = loadedProductId !== resolvedProductId;
 
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      const nextProduct = getProductDetailById(resolvedProductId);
-      setProduct(nextProduct);
-      setLoadedProductId(resolvedProductId);
+    let isMounted = true;
 
-      if (nextProduct) {
-        setSelectedMetal(nextProduct.metalOptions[0]);
-        setSelectedCarat(nextProduct.caratOptions.includes(3) ? 3 : nextProduct.caratOptions[0]);
-        setSelectedDiamondType('Lab-Grown');
-        setSelectedRingSize('');
-        setActiveImageIndex(0);
+    const loadProduct = async () => {
+      try {
+        const nextProduct = await fetchProductDetailById(resolvedProductId);
+        if (!isMounted) {
+          return;
+        }
+
+        setProduct(nextProduct);
+        setLoadedProductId(resolvedProductId);
+
+        if (nextProduct) {
+          setSelectedMetal(nextProduct.metalOptions[0] ?? '');
+          setSelectedCarat(nextProduct.caratOptions[0] ?? 0);
+          setSelectedDiamondType(nextProduct.diamondOptions[0] ?? '');
+          setSelectedRingSize('');
+          setActiveImageIndex(0);
+        }
+      } catch {
+        if (!isMounted) {
+          return;
+        }
+
+        setProduct(null);
+        setLoadedProductId(resolvedProductId);
+        toast.error('Unable to load product details from Supabase.');
       }
-    }, 260);
+    };
 
-    return () => window.clearTimeout(timer);
+    void loadProduct();
+
+    return () => {
+      isMounted = false;
+    };
   }, [resolvedProductId]);
 
   const activeImage = useMemo(() => {
@@ -79,19 +75,7 @@ function ProductPage() {
 
   const productName = product?.name ?? 'Jewelry product';
 
-  const price = useMemo(() => {
-    if (!product) {
-      return 0;
-    }
-
-    const calculated =
-      product.price *
-      metalMultiplier[selectedMetal] *
-      (caratMultiplier[selectedCarat] ?? 1) *
-      diamondMultiplier[selectedDiamondType];
-
-    return Math.round(calculated / 100) * 100;
-  }, [selectedCarat, selectedDiamondType, selectedMetal, product]);
+  const price = product?.price ?? 0;
 
   const formatPrice = (value: number) =>
     new Intl.NumberFormat('en-IN', {
@@ -100,8 +84,18 @@ function ProductPage() {
       maximumFractionDigits: 0,
     }).format(value);
 
+  const requiresMetal = Boolean(product && product.metalOptions.length > 0);
+  const requiresCarat = Boolean(product && product.caratOptions.length > 0);
+  const requiresDiamondType = Boolean(product && product.diamondOptions.length > 0);
+  const requiresRingSize = Boolean(product && product.ringSizes.length > 0);
+
   const canAddToCart = Boolean(
-    product && selectedMetal && selectedCarat && selectedDiamondType && selectedRingSize && !isAddingToCart,
+    product
+      && !isAddingToCart
+      && (!requiresMetal || selectedMetal)
+      && (!requiresCarat || selectedCarat > 0)
+      && (!requiresDiamondType || selectedDiamondType)
+      && (!requiresRingSize || selectedRingSize),
   );
 
   const handleShare = async () => {
@@ -123,8 +117,8 @@ function ProductPage() {
   };
 
   const handleAddToCart = async () => {
-    if (!product || !selectedRingSize) {
-      toast.error('Please select required options before adding to cart.');
+    if (!product || !canAddToCart) {
+      toast.error('Please select the available product options before adding to cart.');
       return;
     }
 
@@ -139,10 +133,10 @@ function ProductPage() {
       unitPrice: price,
       quantity: 1,
       selection: {
-        metal: selectedMetal,
-        carat: selectedCarat,
-        diamondType: selectedDiamondType,
-        size: selectedRingSize,
+        metal: selectedMetal || 'N/A',
+        carat: selectedCarat || 0,
+        diamondType: selectedDiamondType || 'N/A',
+        size: selectedRingSize || 'N/A',
       },
     });
 
@@ -170,7 +164,7 @@ function ProductPage() {
       <section className="section-padding pt-10 md:pt-10 pb-2 md:pb-3 border-b border-white/5 bg-charcoal-light/45">
         <div className="max-w-7xl mx-auto flex items-center justify-between gap-3">
           <Link
-            to={product ? `/category/${toCategorySlug(product.category)}` : '/'}
+            to={product ? `/category/${product.categorySlug}` : '/'}
             className="inline-flex items-center gap-2 text-sm text-gold hover:text-gold-light transition-colors"
           >
             <ArrowLeft className="w-4 h-4" />
@@ -334,63 +328,75 @@ function ProductPage() {
 
                 <p className="text-3xl md:text-4xl font-semibold text-gold">{formatPrice(price)}</p>
 
+                {product.longDescription && (
+                  <p className="text-sm text-gray-300 leading-relaxed">{product.longDescription}</p>
+                )}
+
                 <div className="pt-5 border-t border-white/10 space-y-5">
                   <div>
                     <p className="text-base text-white mb-2">
-                      Metal Type: <span className="text-gold font-semibold">{selectedMetal}</span>
+                      Metal Type: <span className="text-gold font-semibold">{selectedMetal || 'Not specified'}</span>
                     </p>
-                    <div className="flex flex-wrap gap-2">
-                      {product.metalOptions.map((option) => (
-                        <button
-                          key={option}
-                          type="button"
-                          onClick={() => setSelectedMetal(option)}
-                          className={`pdp-option-chip ${selectedMetal === option ? 'active' : ''}`}
-                        >
-                          {option}
-                        </button>
-                      ))}
-                    </div>
+                    {product.metalOptions.length > 0 ? (
+                      <div className="flex flex-wrap gap-2">
+                        {product.metalOptions.map((option) => (
+                          <button
+                            key={option}
+                            type="button"
+                            onClick={() => setSelectedMetal(option)}
+                            className={`pdp-option-chip ${selectedMetal === option ? 'active' : ''}`}
+                          >
+                            {option}
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-gray-400">No metal variants configured in database.</p>
+                    )}
                   </div>
 
                   <div>
                     <p className="text-base text-white mb-2">
-                      Total Carat Weight: <span className="text-gold font-semibold">{selectedCarat} ct. tw.</span>
+                      Total Carat Weight: <span className="text-gold font-semibold">{selectedCarat > 0 ? `${selectedCarat} ct. tw.` : 'Not specified'}</span>
                     </p>
-                    <div className="grid grid-cols-5 gap-2">
-                      {product.caratOptions.map((carat) => {
-                        const disabled = selectedMetal === 'Platinum' && carat === 6;
-                        return (
+                    {product.caratOptions.length > 0 ? (
+                      <div className="grid grid-cols-5 gap-2">
+                        {product.caratOptions.map((carat) => (
                           <button
                             key={carat}
                             type="button"
                             onClick={() => setSelectedCarat(carat)}
-                            disabled={disabled}
                             className={`pdp-option-chip ${selectedCarat === carat ? 'active' : ''}`}
                           >
                             {carat}
                           </button>
-                        );
-                      })}
-                    </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-gray-400">No carat options configured in database.</p>
+                    )}
                   </div>
 
                   <div>
                     <p className="text-base text-white mb-2">
-                      Diamond Type: <span className="text-gold font-semibold">{selectedDiamondType}</span>
+                      Diamond Type: <span className="text-gold font-semibold">{selectedDiamondType || 'Not specified'}</span>
                     </p>
-                    <div className="grid grid-cols-2 gap-2">
-                      {product.diamondOptions.map((type) => (
-                        <button
-                          key={type}
-                          type="button"
-                          onClick={() => setSelectedDiamondType(type)}
-                          className={`pdp-option-chip ${selectedDiamondType === type ? 'active' : ''}`}
-                        >
-                          {type}
-                        </button>
-                      ))}
-                    </div>
+                    {product.diamondOptions.length > 0 ? (
+                      <div className="grid grid-cols-2 gap-2">
+                        {product.diamondOptions.map((type) => (
+                          <button
+                            key={type}
+                            type="button"
+                            onClick={() => setSelectedDiamondType(type)}
+                            className={`pdp-option-chip ${selectedDiamondType === type ? 'active' : ''}`}
+                          >
+                            {type}
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-gray-400">No diamond types configured in database.</p>
+                    )}
                   </div>
 
                   <div>
@@ -414,7 +420,11 @@ function ProductPage() {
                         })}
                       </select>
                     </div>
-                    <p className="text-xs text-gray-400 mt-2">*This ring cannot be resized</p>
+                    {product.ringSizes.length === 0 ? (
+                      <p className="text-xs text-gray-400 mt-2">Ring sizes are not configured for this product.</p>
+                    ) : (
+                      <p className="text-xs text-gray-400 mt-2">*This ring cannot be resized</p>
+                    )}
                   </div>
 
                   <div className="space-y-1 text-sm">
